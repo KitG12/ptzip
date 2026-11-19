@@ -103,6 +103,7 @@ export default function CameraFinder() {
   const [pairBusy, setPairBusy] = useState(false);
   const [helperError, setHelperError] = useState("");
   const [origin, setOrigin] = useState("");
+  const [report, setReport] = useState("");
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const epoch = useRef(0);
   useEffect(() => {
@@ -256,6 +257,34 @@ export default function CameraFinder() {
             log(
               "Large networks: swept the local /24 on each interface plus ONVIF announcements. Enter a range to check other addresses.",
             );
+        }
+        const diag = z
+          .record(
+            z.string().max(20),
+            z.object({
+              adapters: z.number(),
+              sent: z.number(),
+              replies: z.number(),
+              parsed: z.number(),
+              errors: z.array(z.string().max(300)).max(12),
+              sample: z.string().max(1000),
+            }),
+          )
+          .safeParse(r.diagnostics ?? {});
+        const names: Record<string, string> = { panasonic: "Panasonic search", sony: "Sony search" };
+        if (diag.success) {
+          const lines = Object.entries(diag.data).map(
+            ([k, d]) =>
+              `${names[k] ?? k}: ${d.adapters} adapters, ${d.sent} requests sent, ${d.replies} replies, ${d.parsed} cameras recognised${d.errors.length ? ` · problems: ${d.errors.join("; ")}` : ""}${d.sample ? ` · unrecognised reply ${d.sample}` : ""}`,
+          );
+          setReport(
+            [`ptzIP scan report ${new Date().toISOString()}`, `Networks: ${label}`, ...lines, `Devices: ${rows.map((c) => `${c.brand} ${c.model} ${c.ip} ${c.status}`).join(", ") || "none"}`].join("\n"),
+          );
+          for (const [k, d] of Object.entries(diag.data)) {
+            if (d.errors.length) log(`${names[k] ?? k} problem: ${d.errors[0]}`, "error");
+            else if (d.replies && !d.parsed)
+              log(`${names[k] ?? k} got ${d.replies} replies it could not read. Copy the report and send it to support.`, "error");
+          }
         }
         log(`Local scan complete. ${rows.length} identified cameras.`, "success");
         toast.success(`${rows.length} cameras discovered`);
@@ -784,7 +813,22 @@ export default function CameraFinder() {
                 <Activity />
                 Network activity
               </h3>
-              <span>{scanning ? "LISTENING" : "SESSION LOG"}</span>
+              {report && !scanning ? (
+                <button
+                  type="button"
+                  className="report-copy"
+                  onClick={() =>
+                    navigator.clipboard
+                      .writeText(report)
+                      .then(() => toast.success("Scan report copied"))
+                      .catch(() => toast.error("Could not copy the report"))
+                  }
+                >
+                  Copy scan report
+                </button>
+              ) : (
+                <span>{scanning ? "LISTENING" : "SESSION LOG"}</span>
+              )}
             </div>
             <div className="activity-logs">
               {!logs.length && (

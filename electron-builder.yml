@@ -11,7 +11,7 @@ mac:
   artifactName: ptzIP-mac.${ext}
   extendInfo:
     NSLocalNetworkUsageDescription: ptzIP scans your local network to discover production cameras.
-    NSBonjourServices: [_http._tcp]
+    NSBonjourServices: [_http._tcp, _blackmagic._tcp, _bmd_streaming._tcp, _canon-ptz._tcp]
 win:
   target: [{ target: nsis, arch: [x64] }]
   icon: build/icon.png

@@ -34,17 +34,28 @@ function parsePanasonic(buf) {
  const dns=f[0x23]; const port=f[0x25]?.length>=2?f[0x25].readUInt16BE(0):80;
  return {brand:'Panasonic',protocol:'Panasonic EasyIP',mac:[...buf.subarray(6,12)].map(x=>x.toString(16).padStart(2,'0').toUpperCase()).join(':'),ip,cidr:Math.min(30,Math.max(1,cidr)),gateway:ip4(f[0x22]||f[0xa2])||'0.0.0.0',dns1:dns?ip4(dns):'0.0.0.0',dns2:dns&&dns.length>=8?ip4(dns.subarray(4)):'0.0.0.0',port:port>0?port:80,name:str(f[0xa7]).slice(0,60),model:str(f[0xa8]).replace(/^CAM:/,'AW-').slice(0,100)};
 }
-function panasonic() { return new Promise(resolve => {
- const found=new Map(); const s=dgram.createSocket({type:'udp4',reuseAddr:true});
- const finish=()=>{try{s.close();}catch{}resolve([...found.values()]);};
- s.on('error',finish); s.on('message',b=>{const c=parsePanasonic(b);if(c)found.set(c.mac,c);});
- s.bind(10669,()=>{try{s.setBroadcast(true);}catch{}
-  for(const rows of Object.values(os.networkInterfaces()))for(const r of rows||[]){if(r.internal||(r.family!=='IPv4'&&r.family!==4))continue;
-   const mac=(r.mac||'00:00:00:00:00:00').split(':').map(x=>parseInt(x,16)||0),ip=r.address.split('.').map(Number),m=(r.netmask||'255.255.255.0').split('.').map(Number);
-   const pkt=panasonicRequest(mac,ip); const bcast=ip.map((x,i)=>(x|(~m[i]&255))).join('.');
-   for(const dest of [bcast,'255.255.255.255'])try{s.send(pkt,10670,dest);}catch{}}
- }); setTimeout(finish,2500);
-}); }
+function ifaceRows(){const out=[];for(const rows of Object.values(os.networkInterfaces()))for(const r of rows||[]){if(r.internal||(r.family!=='IPv4'&&r.family!==4))continue;out.push(r);}return out;}
+function newDiag(){return {adapters:0,sent:0,replies:0,parsed:0,errors:[],sample:''};}
+// Read-only broadcast search. Sends from a socket bound to each adapter's own address so the
+// all-hosts broadcast (255.255.255.255) leaves through every adapter, not just the default route
+// (macOS otherwise sends it only out the primary adapter, e.g. a Wi-Fi hotspot).
+function udpSearch({listenPort,destPort,packet,parse,key,d,note}){return new Promise(resolve=>{
+ const found=new Map(),socks=[];let closed=false;const rows=ifaceRows();d.adapters=rows.length;
+ const err=(where,e)=>{const code=e&&(e.code||e.message)||String(e);d.errors.length<12&&d.errors.push(`${where}: ${code}${code==='EADDRINUSE'&&note?' ('+note+')':''}`);};
+ const finish=()=>{closed=true;for(const x of socks)try{x.close();}catch{}resolve([...found.values()]);};
+ const onMsg=(b,r)=>{d.replies++;const c=parse(b,r&&r.address);if(c){d.parsed++;found.set(key(c),c);}else if(!d.sample)d.sample=`${r&&r.address}: `+b.subarray(0,400).toString('hex');};
+ const open=(port,addr,fallback,ready)=>{const x=dgram.createSocket({type:'udp4',reuseAddr:true});socks.push(x);let bound=false;
+  x.on('error',e=>{if(!bound&&fallback){open(0,addr,false,ready);}else err(`${addr} port ${port}`,e);});
+  x.on('message',onMsg);
+  try{x.bind(port,addr,()=>{bound=true;try{x.setBroadcast(true);}catch{}if(ready&&!closed)ready(x);});}catch(e){err(addr,e);}};
+ open(listenPort,'0.0.0.0',false,null);
+ if(!rows.length)d.errors.push('No IPv4 network adapters found.');
+ for(const r of rows){const ip=r.address.split('.').map(Number),m=(r.netmask||'255.255.255.0').split('.').map(Number);const bcast=ip.map((x,i)=>(x|(~m[i]&255))).join('.');
+  open(listenPort,r.address,true,x=>{for(const dest of new Set(['255.255.255.255',bcast]))try{x.send(packet(r),destPort,dest,e=>{if(e)err(`${r.address} → ${dest}`,e);else d.sent++;});}catch(e){err(`${r.address} → ${dest}`,e);}});}
+ setTimeout(finish,2500);
+});}
+function panasonic(d=newDiag()){return udpSearch({listenPort:10669,destPort:10670,d,note:'quit Panasonic EasyIP while scanning',key:c=>c.mac,parse:b=>parsePanasonic(b),
+ packet:r=>panasonicRequest((r.mac||'00:00:00:00:00:00').split(':').map(x=>parseInt(x,16)||0),r.address.split('.').map(Number))});}
 async function announcedCamera(p) {
  const r=await ping(p.ip,p.port);
  return {id:`local-${p.ip}`,type:p.brand==='Blackmagic'&&!/studio/i.test(p.model)?'Cinema':'PTZ',brand:p.brand,model:p.model,name:p.name||p.model,ip:p.ip,port:p.port,securePort:443,mac:p.mac,serial:'Not reported',firmware:p.firmware||'Not reported',protocol:p.protocol,latency:r.latency,status:r.open?'Online':'Subnet Mismatch',source:'local',cidr:p.cidr,gateway:p.gateway,dns1:p.dns1,dns2:p.dns2};
@@ -58,9 +69,7 @@ function parseSony(buf){
  const cidr=(f.MASK||'255.255.255.0').split('.').reduce((n,x)=>n+((+x).toString(2).match(/1/g)||[]).length,0);
  return {brand:'Sony',protocol:'Sony VISCA over IP',mac:(f.MAC||'Not reported').toUpperCase().slice(0,60),ip:f.IPADR,cidr:Math.min(30,Math.max(1,cidr)),gateway:ipOK(f.GATEWAY)?f.GATEWAY:'0.0.0.0',dns1:'0.0.0.0',dns2:'0.0.0.0',port:80,name:(f.NAME||f.MODEL||'Sony camera').slice(0,60),model:(f.MODEL||'Sony camera').slice(0,100),firmware:(f.SOFTVERSION||'Not reported').slice(0,60)};
 }
-function sony(){return new Promise(resolve=>{const found=new Map();const s=dgram.createSocket({type:'udp4',reuseAddr:true});const finish=()=>{try{s.close();}catch{}resolve([...found.values()]);};
- s.on('error',finish);s.on('message',b=>{const c=parseSony(b);if(c)found.set(c.mac+c.ip,c);});
- s.bind(52380,()=>{try{s.setBroadcast(true);}catch{}for(const dest of broadcastTargets())try{s.send(SONY_ENQ,52380,dest);}catch{}});setTimeout(finish,2500);});}
+function sony(d=newDiag()){return udpSearch({listenPort:52380,destPort:52380,d,note:'quit other camera tools while scanning',key:c=>c.mac+c.ip,parse:b=>parseSony(b),packet:()=>SONY_ENQ});}
 function broadcastTargets(){const out=new Set(['255.255.255.255']);for(const rows of Object.values(os.networkInterfaces()))for(const r of rows||[]){if(r.internal||(r.family!=='IPv4'&&r.family!==4))continue;const ip=r.address.split('.').map(Number),m=(r.netmask||'255.255.255.0').split('.').map(Number);out.add(ip.map((x,i)=>(x|(~m[i]&255))).join('.'));}return [...out];}
 // Bonjour/mDNS search (read-only) for Blackmagic and Canon services; same network range only.
 const MDNS_SERVICES=['_blackmagic._tcp.local','_bmd_streaming._tcp.local','_canon-ptz._tcp.local'];
@@ -106,7 +115,7 @@ function connectedNetworks(interfaces = os.networkInterfaces()) {
  return networks;
 }
 let busy = false;
-if(require.main!==module){module.exports={panasonicRequest,parsePanasonic,parseSony,SONY_ENQ,parseMdns,mdnsQuery};}else http.createServer(async(req,res)=>{
+if(require.main!==module){module.exports={udpSearch,newDiag,panasonicRequest,parsePanasonic,parseSony,SONY_ENQ,parseMdns,mdnsQuery};}else http.createServer(async(req,res)=>{
  const origin=req.headers.origin;
  if(req.headers.host!=='127.0.0.1:3344' || origin!==allowedOrigin) {res.writeHead(403);res.end();return;}
  const headers={'Access-Control-Allow-Origin':allowedOrigin,'Access-Control-Allow-Headers':'Content-Type, X-Camera-Token','Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Private-Network':'true','Content-Type':'application/json','Cache-Control':'no-store'};
@@ -126,7 +135,7 @@ if(require.main!==module){module.exports={panasonicRequest,parsePanasonic,parseS
  if(!target&&!networks.length)throw Error('No connected private IPv4 networks found. Connect Ethernet or Wi-Fi to your camera switch, or enter a private IP range.');
  const targets=target?parseTarget(target):[...new Set(networks.flatMap(n=>[n.address,...parseTarget(n.target)]))];
  const ports=data.ports||[80,443];if(!Array.isArray(ports)||ports.length<1||ports.length>16||ports.some(p=>!Number.isInteger(p)||p<1||p>65535))throw Error('Choose up to 16 valid ports.');
- busy=true;try{const [announced,...lists]=await Promise.all([onvif(),panasonic(),sony(),mdns()]);const pana=lists.flat();const ips=target?targets:[...new Set([...targets,...announced.keys()])];const devices=[];let index=0;await Promise.all(Array.from({length:24},async()=>{while(index<ips.length){const ip=ips[index++];for(const p of ports){const c=await inspect(ip,p,announced.get(ip)||'');if(c){devices.push(c);break;}}}}));const panaRows=await Promise.all(pana.filter(p=>!target||targets.includes(p.ip)).map(announcedCamera));for(const c of panaRows){const i=devices.findIndex(d=>d.ip===c.ip);if(i>=0)devices[i]={...devices[i],...c,latency:devices[i].latency,status:devices[i].status};else devices.push(c);}reply({devices,networks});}finally{busy=false;}return;}
+ busy=true;try{const diagnostics={panasonic:newDiag(),sony:newDiag()};const [announced,...lists]=await Promise.all([onvif(),panasonic(diagnostics.panasonic),sony(diagnostics.sony),mdns()]);const pana=lists.flat();const ips=target?targets:[...new Set([...targets,...announced.keys()])];const devices=[];let index=0;await Promise.all(Array.from({length:24},async()=>{while(index<ips.length){const ip=ips[index++];for(const p of ports){const c=await inspect(ip,p,announced.get(ip)||'');if(c){devices.push(c);break;}}}}));const panaRows=await Promise.all(pana.filter(p=>!target||targets.includes(p.ip)).map(announcedCamera));for(const c of panaRows){const i=devices.findIndex(d=>d.ip===c.ip);if(i>=0)devices[i]={...devices[i],...c,latency:devices[i].latency,status:devices[i].status};else devices.push(c);}reply({devices,networks,diagnostics});}finally{busy=false;}return;}
  if(req.url==='/add'){if(!ipOK(data.ip)||!Number.isInteger(data.port)||data.port<1||data.port>65535)throw Error('Enter a private IPv4 address and valid port.');let c=await inspect(data.ip,data.port,'',true);if(!c){const p=(await Promise.all([panasonic(),sony(),mdns()])).flat().find(x=>x.ip===data.ip);if(p)c=await announcedCamera(p);}reply({devices:c?[c]:[]});return;}
  throw Error('Unsupported action. Vendor network rewriting is intentionally not implemented.');
  }catch(e){reply({error:e.message});}

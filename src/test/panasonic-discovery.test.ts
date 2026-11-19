@@ -39,3 +39,16 @@ describe('Sony and Bonjour discovery', () => {
     expect(h.parseMdns(pkt, '192.168.10.50')).toMatchObject({ brand:'Blackmagic', ip:'192.168.10.50', model:'URSA Broadcast G2' });
   });
 });
+import dgram from 'node:dgram';
+describe('Cross-network Panasonic search', () => {
+  it('finds a camera that answers by broadcast and reports a busy listening port', async () => {
+    const cam = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+    cam.on('message', () => { cam.setBroadcast(true); cam.send(announcement(), 10669, '255.255.255.255'); });
+    await new Promise<void>(r => cam.bind(10670, () => r()));
+    const d = h.newDiag();
+    const rows = await h.udpSearch({ listenPort: 10669, destPort: 10670, d, key: (c: {mac:string}) => c.mac, parse: (b: Buffer) => h.parsePanasonic(b), packet: (r: {address:string}) => h.panasonicRequest([0,0,0,0,0,0], r.address.split('.').map(Number)) });
+    cam.close();
+    expect(d.sent).toBeGreaterThan(0);
+    expect(rows.map((c: {ip:string}) => c.ip)).toEqual(['192.168.1.147']);
+  }, 10000);
+});
