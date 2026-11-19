@@ -369,14 +369,22 @@ export default function CameraFinder() {
             "This companion requires a numeric private IPv4 address. Resolve the hostname on your workstation first.",
           );
         let found: Camera[] = [];
+        let problem = "";
         for (let p = port; p <= endPort; p++) {
           const r = await companion("/add", { ip: host, port: p });
           if (current !== epoch.current) return;
           found = z.array(localSchema).parse(r.devices);
+          const errs = z
+            .record(z.string().max(20), z.object({ errors: z.array(z.string().max(300)).max(12) }))
+            .safeParse(r.diagnostics ?? {});
+          if (errs.success)
+            problem = Object.values(errs.data).flatMap((d) => d.errors)[0] ?? problem;
           if (found.length) break;
         }
         if (!found.length)
-          throw Error(`No response from ${host}. Check the camera is powered and on the same network range as this computer (EasyIP shows its address).`);
+          throw Error(
+            `No response from ${host}. Check the camera is powered and plugged into the same switch as this computer.${problem ? ` Search problem: ${problem}.` : " Quit EasyIP while ptzIP searches."}`,
+          );
         setCameras((cs) => [...cs.filter((c) => !found.some((f) => f.ip === c.ip)), ...found]);
         setSelected(found[0]?.id ?? "");
         log(`Manually discovered ${host}.`, "success");
