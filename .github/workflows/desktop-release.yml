@@ -3,31 +3,37 @@ on:
   push: { tags: ['v*'] }
   workflow_dispatch:
 permissions: { contents: write }
+concurrency: { group: desktop-release, cancel-in-progress: false }
 jobs:
   build:
     strategy:
       matrix:
         include:
-          - { os: macos-latest, flag: --mac }
-          - { os: windows-latest, flag: --win }
+          - { os: macos-latest, flag: --mac, file: ptzIP-mac.dmg }
+          - { os: windows-latest, flag: --win, file: ptzIP-win.exe }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
       - run: npm install --no-save --no-package-lock --ignore-scripts electron@33.2.0 electron-builder@25
       - name: Build adapter-pinned broadcast sender (macOS)
         if: runner.os == 'macOS'
         run: mkdir -p build/native && clang -O2 -arch arm64 -arch x86_64 -o build/native/ptzip-bcast electron/native/ptzip-bcast.c
       - run: npx electron-builder --config electron-builder.yml ${{ matrix.flag }} --publish never
         env: { CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
-          name: ptzIP-${{ matrix.os }}
-          path: |
-            electron-release/ptzIP-mac.dmg
-            electron-release/ptzIP-win.exe
-          if-no-files-found: ignore
+          name: ${{ matrix.file }}
+          path: electron-release/${{ matrix.file }}
+          if-no-files-found: error
+  # One job publishes both installers, so the two builds never race to edit the same release.
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v5
+        with: { path: dist, merge-multiple: true }
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.0.0' }}
@@ -35,6 +41,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           make_latest: true
           draft: false
+          overwrite_files: true
           files: |
-            electron-release/ptzIP-mac.dmg
-            electron-release/ptzIP-win.exe
+            dist/ptzIP-mac.dmg
+            dist/ptzIP-win.exe
