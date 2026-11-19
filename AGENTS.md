@@ -34,3 +34,4 @@ use the editor.
 - Real LAN discovery uses the downloadable origin-and-token-restricted loopback companion because the hosted app cannot access workstation UDP networks.
 - Keep the companion read-only until tested vendor adapters exist; never imply a simulated action modifies physical devices.
 - Camera records are session-only; local discovery does not need cloud persistence.
+- Desktop installation uses manifest-only PWA support with bundled icons; do not add an app-shell service worker unless offline use is requested, to avoid stale preview caches.

@@ -1,4 +1,5 @@
 # Camera Finder
+- [x] Add and verify manifest-only desktop installation and branded icons.
 - [x] Build the two-pane camera finder and adaptive inspectors.
 - [x] Complete simulated scanning, filtering, manual add, PTZ validation and confirmation.
 - [x] Connect a downloadable local discovery helper and web remote launcher.
