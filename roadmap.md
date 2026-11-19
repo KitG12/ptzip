@@ -1,4 +1,5 @@
 # ptzIP
+- [x] Sweep all discovery entry points, setup cancellation, scan results and network summaries.
 - [x] Make Scan Network select connected interfaces automatically, prompt pairing visibly, and resume after pairing.
 - [x] Test automatic interface targeting and paired scanning with real local responses.
 - [x] Rename all app branding, installation metadata, exports and documentation to ptzIP.

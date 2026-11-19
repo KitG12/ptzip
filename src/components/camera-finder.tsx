@@ -125,7 +125,7 @@ export default function CameraFinder() {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Camera-Token": token },
         body: JSON.stringify(data),
-        signal: AbortSignal.timeout(path === "/scan" ? 90000 : 10000),
+        signal: AbortSignal.timeout(path === "/scan" ? 600000 : 10000),
       });
     } catch {
       setPaired(false);
@@ -228,10 +228,13 @@ export default function CameraFinder() {
       try {
         const r = await companion("/scan", subnet.trim() ? { target: subnet } : { auto: true });
         if (current !== epoch.current) return;
-        const rows = z.array(localSchema).max(512).parse(r.devices);
+        const rows = z.array(localSchema).max(8192).parse(r.devices);
         setCameras(rows);
         setDiscovered(rows.length);
         setSelected(rows[0]?.id ?? "");
+        setTab("All");
+        setBrand("All brands");
+        setSearch("");
         setProgress(100);
         if (Array.isArray(r.networks)) {
           const scopes = z
@@ -244,7 +247,7 @@ export default function CameraFinder() {
             )
             .max(32)
             .parse(r.networks);
-          setScanScope(scopes.map((n) => `${n.name}: ${n.target}`).join(" · "));
+          if (scopes.length) setScanScope(scopes.map((n) => `${n.name}: ${n.target}`).join(" · "));
           if (scopes.some((n) => n.limited))
             log(
               "Large networks: swept the local /24 on each interface plus ONVIF announcements. Enter a range to check other addresses.",
@@ -391,6 +394,7 @@ export default function CameraFinder() {
     setRemote(c);
     setModal("remote");
   };
+  const scopeLabel = subnet || scanScope || (mode === "demo" ? "192.168.1.0/24" : "All connected networks");
   return (
     <div className={`app-shell ${mode === "local" && !paired ? "setup-open" : ""}`}>
       <Toaster theme="dark" position="bottom-right" />
@@ -520,7 +524,7 @@ export default function CameraFinder() {
               </h2>
               <p>
                 {mode === "demo" ? "Demo Sandbox · sample data" : "Live Discovery"} <span> / </span>{" "}
-                {subnet || scanScope || "All connected networks"}
+                {scopeLabel}
               </p>
             </div>
             <div className="flex gap-1">
@@ -736,6 +740,7 @@ export default function CameraFinder() {
                 {!scanning && (
                   <Button
                     variant="outline"
+                    disabled={pairBusy || manualBusy}
                     onClick={() => {
                       if (cameras.length) {
                         setTab("All");
@@ -871,7 +876,7 @@ export default function CameraFinder() {
         </span>
         <span>
           <EthernetPort />
-          {subnet}
+          {scopeLabel}
           <i />
           {cameras.length} devices <span className="footer-version">v1.0</span>
         </span>
@@ -879,7 +884,10 @@ export default function CameraFinder() {
       <Dialog
         open={modal !== null}
         onOpenChange={(o) => {
-          if (!o) setModal(null);
+          if (!o) {
+            setModal(null);
+            setPendingScan(false);
+          }
         }}
       >
         <DialogContent className="utility-modal">
@@ -996,7 +1004,7 @@ export default function CameraFinder() {
             <>
               <DialogTitle>ptzIP · Export / Patch sheet</DialogTitle>
               <DialogDescription>
-                {filtered.length} cameras from your current view · {subnet}
+                {filtered.length} cameras from your current view · {scopeLabel}
               </DialogDescription>
               <div className="export-options">
                 <Button variant="outline" onClick={exportCSV}>
@@ -1102,7 +1110,7 @@ export default function CameraFinder() {
       <section className="print-sheet">
         <h1>ptzIP · Camera Patch Sheet</h1>
         <p>
-          {subnet} · {mode === "demo" ? "SIMULATED DATA" : "Local discovery"} · {filtered.length}{" "}
+          {scopeLabel} · {mode === "demo" ? "SIMULATED DATA" : "Local discovery"} · {filtered.length}{" "}
           cameras
         </p>
         <table>
