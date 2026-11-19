@@ -27,6 +27,8 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { CameraInspector, CameraGlyph } from "@/components/camera-inspector";
+import { DesktopDownload } from "@/components/desktop-download";
+import { desktopBridge } from "@/lib/desktop";
 import { Camera, csv, demoCameras, download, ipv4 } from "@/lib/cameras";
 import { initialDiscoveryMode, parseTarget } from "@/lib/discovery";
 import { CompanionSetup } from "@/components/companion-setup";
@@ -105,6 +107,8 @@ export default function CameraFinder() {
   const epoch = useRef(0);
   useEffect(() => {
     setOrigin(window.location.origin);
+    const bridge = desktopBridge();
+    if (bridge?.token) setToken(bridge.token);
     return () => {
       if (timer.current) clearInterval(timer.current);
       epoch.current++;
@@ -381,6 +385,15 @@ export default function CameraFinder() {
       setPairBusy(false);
     }
   }
+  const autoPaired = useRef(false);
+  useEffect(() => {
+    const bridge = desktopBridge();
+    if (bridge?.token && token === bridge.token && !autoPaired.current) {
+      autoPaired.current = true;
+      void pair();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
   function exportCSV() {
     download(
       new Blob([csv(filtered)], { type: "text/csv;charset=utf-8" }),
@@ -436,6 +449,7 @@ export default function CameraFinder() {
                 ? "Local companion connected"
                 : "Ready to scan · pair companion"}
           </span>
+          <DesktopDownload />
           <Button
             variant="ghost"
             size="icon"

@@ -7,7 +7,7 @@ const crypto = require('node:crypto');
 const os = require('node:os');
 const allowedOrigin = process.argv[2];
 if (!allowedOrigin || !/^https?:\/\/[^/]+$/.test(allowedOrigin)) { console.error('Supply the exact app origin: node ptzip-helper.cjs https://your-app.lovable.app'); process.exit(1); }
-const token = crypto.randomBytes(24).toString('hex');
+const token = process.env.PTZIP_TOKEN || crypto.randomBytes(24).toString('hex');
 const ipOK = x => typeof x === 'string' && /^(\d{1,3}\.){3}\d{1,3}$/.test(x) && x.split('.').every(v => +v < 256) && (/^192\.168\./.test(x) || /^10\./.test(x) || /^172\.(1[6-9]|2\d|3[01])\./.test(x));
 function ping(ip, port) { return new Promise(resolve => { const started = performance.now(); const s = net.createConnection({host:ip,port}); s.setTimeout(650); let done = false; const end = open => { if(done)return; done=true; s.destroy(); resolve({open,latency: +(performance.now()-started).toFixed(1)}); }; s.on('connect',()=>end(true)); s.on('timeout',()=>end(false)); s.on('error',()=>end(false)); }); }
 async function inspect(ip, port) {

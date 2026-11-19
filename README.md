@@ -47,3 +47,7 @@ npm run dev
 - TypeScript
 - React
 - Tailwind CSS
+
+## Desktop app (.dmg / .exe)
+
+Crew can click **Get desktop app** to install ptzIP with built-in network scanning and no terminal setup. Installers are built by `.github/workflows/desktop-release.yml`: push a tag like `v1.0.0` from your connected GitHub repo, then set `VITE_DESKTOP_RELEASES_URL` to `https://github.com/OWNER/REPO/releases/latest/download` so the download buttons point at the release. Builds are unsigned unless you add Apple/Windows signing certificates.

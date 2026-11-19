@@ -1,0 +1,20 @@
+appId: app.ptzip.desktop
+productName: ptzIP
+electronVersion: 33.2.0
+directories: { output: electron-release, buildResources: build }
+files: [electron/**, public/downloads/ptzip-helper.cjs, package.json]
+extraMetadata: { main: electron/main.cjs }
+mac:
+  target: [{ target: dmg, arch: [universal] }]
+  icon: public/icons/camera-finder-512.png
+  category: public.app-category.utilities
+  artifactName: ptzIP-mac.${ext}
+  extendInfo:
+    NSLocalNetworkUsageDescription: ptzIP scans your local network to discover production cameras.
+    NSBonjourServices: [_http._tcp]
+win:
+  target: [{ target: nsis, arch: [x64] }]
+  icon: public/icons/camera-finder-512.png
+  artifactName: ptzIP-win.${ext}
+nsis: { oneClick: false, allowToChangeInstallationDirectory: true }
+publish: null

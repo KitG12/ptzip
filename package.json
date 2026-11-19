@@ -11,7 +11,10 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "desktop:dev": "PTZIP_URL=http://localhost:8080 electron electron/main.cjs",
+    "desktop:mac": "electron-builder --config electron-builder.yml --mac",
+    "desktop:win": "electron-builder --config electron-builder.yml --win"
   },
   "overrides": {
     "rolldown": "1.2.1",
@@ -93,5 +96,8 @@
     "typescript-eslint": "^8.56.1",
     "vite": "8.1.5",
     "vitest": "^4.1.10"
-  }
+  },
+  "version": "1.0.0",
+  "main": "electron/main.cjs",
+  "productName": "ptzIP"
 }
