@@ -39,6 +39,13 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error(error);
   const router = useRouter();
   useEffect(() => {
+    // A stale page chunk (e.g. after a preview restart) fails to import; reload once to fetch fresh code.
+    const msg = String((error as Error)?.message ?? error);
+    if (/Importing a module script failed|Failed to fetch dynamically imported module|error loading dynamically imported module/i.test(msg) && !sessionStorage.getItem("ptzip-chunk-reload")) {
+      sessionStorage.setItem("ptzip-chunk-reload", "1");
+      window.location.reload();
+      return;
+    }
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
@@ -124,6 +131,16 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  useEffect(() => {
+    const t = setTimeout(() => sessionStorage.removeItem("ptzip-chunk-reload"), 10000);
+    const onPreloadError = () => {
+      if (sessionStorage.getItem("ptzip-chunk-reload")) return;
+      sessionStorage.setItem("ptzip-chunk-reload", "1");
+      window.location.reload();
+    };
+    window.addEventListener("vite:preloadError", onPreloadError);
+    return () => { clearTimeout(t); window.removeEventListener("vite:preloadError", onPreloadError); };
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
