@@ -420,27 +420,6 @@ export default function CameraFinder() {
           <span className="edition">MULTI-BRAND</span>
         </div>
         <div className="header-tools">
-          <div className="discovery-mode" role="group" aria-label="Discovery mode">
-            <Button
-              size="sm"
-              variant={mode === "local" ? "secondary" : "ghost"}
-              aria-pressed={mode === "local"}
-              disabled={pairBusy || manualBusy}
-              onClick={() => changeMode("local")}
-            >
-              <Radio />
-              Live Discovery
-            </Button>
-            <Button
-              size="sm"
-              variant={mode === "demo" ? "secondary" : "ghost"}
-              aria-pressed={mode === "demo"}
-              disabled={pairBusy || manualBusy}
-              onClick={() => changeMode("demo")}
-            >
-              Demo Sandbox
-            </Button>
-          </div>
           <span className={`mode-indicator ${mode === "local" && paired ? "connected" : ""}`}>
             <i />
             {mode === "demo"

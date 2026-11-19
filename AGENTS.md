@@ -37,4 +37,5 @@ use the editor.
 - Keep the companion read-only until tested vendor adapters exist; never imply a simulated action modifies physical devices.
 - Camera records are session-only; local discovery does not need cloud persistence.
 - Desktop installation uses manifest-only PWA support with bundled icons; do not add an app-shell service worker unless offline use is requested, to avoid stale preview caches.
+- The web page is only a download page; the scanner UI renders solely inside the Electron shell (detected via the preload bridge), and the Demo Sandbox is not shown.
 - The Electron desktop shell loads the published web app and forks the same read-only helper with an injected token exposed via preload, so desktop users auto-pair; installers are built only in GitHub Actions (electron-builder), never in the Lovable build.

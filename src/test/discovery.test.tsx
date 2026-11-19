@@ -8,10 +8,7 @@ describe("Live Discovery", () => {
     expect(initialDiscoveryMode).toBe("local");
     const { container } = render(<CameraFinder />);
     expect(container.querySelectorAll(".camera-table tbody tr")).toHaveLength(0);
-    fireEvent.click(screen.getByRole("button", { name: "Demo Sandbox" }));
-    expect(container.querySelectorAll(".camera-table tbody tr")).toHaveLength(10);
-    fireEvent.click(screen.getByRole("button", { name: "Live Discovery" }));
-    expect(container.querySelectorAll(".camera-table tbody tr")).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Demo Sandbox" })).toBeNull();
   });
   it("accepts the requested camera address directly", () => {
     expect(parseTarget("192.168.1.147")).toEqual(["192.168.1.147"]);
