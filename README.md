@@ -10,7 +10,7 @@ ptzIP starts with an empty device list in Live Discovery. No network requests ar
 2. Install Node.js 20+ and open a terminal in the download folder.
 3. Run `node ptzip-helper.cjs https://YOUR-APP-ORIGIN` using the exact command shown by ptzIP.
 4. Paste the terminal's pairing token into ptzIP and allow browser local-network access.
-5. Enter a private IPv4 address, a CIDR from /24 to /32, or a full range such as `192.168.1.140 - 192.168.1.160`. Sweeps are limited to 256 addresses. Use Manual IP to query an individual camera, such as `192.168.1.147`, with its web service port.
+5. Click **Scan Network** to automatically scan connected private IPv4 interfaces. If you click before pairing, setup opens immediately and scanning starts when pairing succeeds. Leave the target blank for automatic selection, or enter a private IP, CIDR from /24 to /32, or full range such as `192.168.1.140 - 192.168.1.160`. Manual sweeps are limited to 256 addresses. Larger connected subnets are bounded to the interface's local /24 plus ONVIF announcements; use explicit ranges to check additional addresses. Use Manual IP to query an individual camera, such as `192.168.1.147`, with its web service port.
 
 The read-only companion binds to `127.0.0.1:3344`, verifies the exact app origin and pairing token, and supports ONVIF discovery, HTTP camera identification, and TCP checks. It must run on the same computer as the browser and have access to the camera switch or routed VLAN. An open service without identifiable camera branding is not listed as a camera. Unknown MAC, serial and firmware values remain “Not reported”. Proprietary vendor UDP adapters and physical-camera network rewriting are not implemented. Cinema camera addresses must be set on the camera or via DHCP.
 

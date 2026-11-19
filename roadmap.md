@@ -1,4 +1,6 @@
 # ptzIP
+- [x] Make Scan Network select connected interfaces automatically, prompt pairing visibly, and resume after pairing.
+- [x] Test automatic interface targeting and paired scanning with real local responses.
 - [x] Rename all app branding, installation metadata, exports and documentation to ptzIP.
 - [x] Default to empty Live Discovery and explicit Demo Sandbox selection.
 - [x] Show inline companion setup, command copy and connection status.

@@ -1,8 +1,8 @@
-import { describe, expect, it, afterEach } from "vitest";
+import { describe, expect, it, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import CameraFinder from "@/components/camera-finder";
 import { initialDiscoveryMode, parseTarget } from "@/lib/discovery";
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 describe("Live Discovery", () => {
   it("defaults to live with no sample cameras until Demo Sandbox is explicitly selected", () => {
     expect(initialDiscoveryMode).toBe("local");
@@ -15,6 +15,13 @@ describe("Live Discovery", () => {
   });
   it("accepts the requested camera address directly", () => {
     expect(parseTarget("192.168.1.147")).toEqual(["192.168.1.147"]);
+  });
+  it('requires pairing before network traffic and remembers the requested scan', () => {
+    const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+    render(<CameraFinder />);
+    fireEvent.click(screen.getByRole('button', {name: 'Scan Network'}));
+    expect(fetch).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeTruthy();
   });
   it("expands a bounded IP range inclusively", () => {
     expect(parseTarget("192.168.1.147 - 192.168.1.149")).toEqual([

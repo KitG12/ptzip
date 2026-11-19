@@ -4,6 +4,7 @@ const http = require('node:http');
 const net = require('node:net');
 const dgram = require('node:dgram');
 const crypto = require('node:crypto');
+const os = require('node:os');
 const allowedOrigin = process.argv[2];
 if (!allowedOrigin || !/^https?:\/\/[^/]+$/.test(allowedOrigin)) { console.error('Supply the exact app origin: node ptzip-helper.cjs https://your-app.lovable.app'); process.exit(1); }
 const token = crypto.randomBytes(24).toString('hex');
@@ -17,7 +18,7 @@ async function inspect(ip, port) {
  const model = text.match(/(?:AW-UE\w+|BRC-\w+|Alexa\s*35|V-RAPTOR|CR-N\d+|URSA[^<\n]{0,25}|P200|FX[369])/i)?.[0] || 'Detected camera';
  return {id:`local-${ip}`,type:/ARRI|RED|Blackmagic/.test(brand)||/^FX/.test(model)?'Cinema':'PTZ',brand,model,name:model,ip,port,securePort:443,mac:'Not reported',serial:'Not reported',firmware:'Not reported',protocol:'HTTP discovery',latency:result.latency,status:'Online',source:'local',cidr:24,gateway:ip.split('.').slice(0,3).join('.')+'.1',dns1:'0.0.0.0',dns2:'0.0.0.0'};
 }
-async function onvif() { return new Promise(resolve => { const s = dgram.createSocket('udp4'); const addresses = new Set(); s.on('error',()=>{try{s.close();}catch{}resolve([]);}); s.on('message',b=> { for(const m of b.toString().matchAll(/https?:\/\/(\d+\.\d+\.\d+\.\d+)(?::\d+)?/g)) if(ipOK(m[1]))addresses.add(m[1]); }); s.bind(()=>{ const xml=`<?xml version="1.0"?><e:Envelope xmlns:e="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:n="http://www.onvif.org/ver10/network/wsdl"><e:Header><a:MessageID>uuid:${crypto.randomUUID()}</a:MessageID><a:To>urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To><a:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</a:Action></e:Header><e:Body><d:Probe><d:Types>n:NetworkVideoTransmitter</d:Types></d:Probe></e:Body></e:Envelope>`; s.send(Buffer.from(xml),3702,'239.255.255.250'); }); setTimeout(()=>{try{s.close();}catch{}resolve([...addresses]);},1500); }); }
+async function onvif() { return new Promise(resolve => { const s = dgram.createSocket('udp4'); const addresses = new Set(); s.on('error',()=>{try{s.close();}catch{}resolve([]);}); s.on('message',b=> { for(const m of b.toString().matchAll(/https?:\/\/(\d+\.\d+\.\d+\.\d+)(?::\d+)?/g)) if(ipOK(m[1]))addresses.add(m[1]); }); s.bind(()=>{ const xml=`<?xml version="1.0"?><e:Envelope xmlns:e="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:n="http://www.onvif.org/ver10/network/wsdl"><e:Header><a:MessageID>uuid:${crypto.randomUUID()}</a:MessageID><a:To>urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To><a:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</a:Action></e:Header><e:Body><d:Probe><d:Types>n:NetworkVideoTransmitter</d:Types></d:Probe></e:Body></e:Envelope>`; for(const iface of connectedNetworks()){try{s.setMulticastInterface(iface.address);s.send(Buffer.from(xml),3702,'239.255.255.250');}catch{}} }); setTimeout(()=>{try{s.close();}catch{}resolve([...addresses]);},1500); }); }
 function parseTarget(input) {
  const n=ip=>ip.split('.').reduce((v,x)=>v*256+Number(x),0);
  const format=value=>[24,16,8,0].map(s=>(value>>>s)&255).join('.');
@@ -27,6 +28,22 @@ function parseTarget(input) {
  else {if(!ipOK(target))throw Error('Enter a private IP, CIDR subnet, or full start IP - end IP range.');first=n(target);last=first;}
  if(last<first||last-first+1>256)throw Error('Choose an ascending range of at most 256 addresses.');
  const ips=Array.from({length:last-first+1},(_,i)=>format(first+i));if(ips.some(ip=>!ipOK(ip)))throw Error('Only private IPv4 addresses may be scanned.');return ips;
+}
+function connectedNetworks(interfaces = os.networkInterfaces()) {
+ const networks=[];
+ for(const [name, rows] of Object.entries(interfaces)) for(const row of rows||[]) {
+  if(row.internal || (row.family!=='IPv4' && row.family!==4) || !ipOK(row.address))continue;
+  const supplied=Number(String(row.cidr||'').split('/')[1]);
+  const bits=Number.isInteger(supplied)&&supplied>=1&&supplied<=32?supplied:24;
+  const prefix=Math.max(24,bits),size=2**(32-prefix);
+  const value=row.address.split('.').reduce((n,x)=>n*256+Number(x),0);
+  const base=Math.floor(value/size)*size;
+  const ip=[24,16,8,0].map(s=>(base>>>s)&255).join('.');
+  const target=`${ip}/${prefix}`;
+  if(!networks.some(n=>n.target===target))networks.push({name,target,limited:bits<24,address:row.address});
+ }
+ if(networks.length>32)throw Error('Too many connected interfaces. Enter a specific subnet or range.');
+ return networks;
 }
 let busy = false;
 http.createServer(async(req,res)=>{
@@ -44,9 +61,12 @@ http.createServer(async(req,res)=>{
  if(req.url==='/ping'){if(!ipOK(data.ip)||!Number.isInteger(data.port)||data.port<1||data.port>65535)throw Error('Invalid private IPv4 address or port.');reply(await ping(data.ip,data.port));return;}
  if(req.url==='/scan'){
  if(busy)throw Error('A scan is already running.');
- const target=String(data.target||data.subnet||'');const targets=parseTarget(target);
+ const target=String(data.target||data.subnet||'').trim();
+ const networks=target?[]:connectedNetworks();
+ if(!target&&!networks.length)throw Error('No connected private IPv4 networks found. Connect Ethernet or Wi-Fi to your camera switch, or enter a private IP range.');
+ const targets=target?parseTarget(target):[...new Set(networks.flatMap(n=>[n.address,...parseTarget(n.target)]))];
  const ports=data.ports||[80,443];if(!Array.isArray(ports)||ports.length<1||ports.length>16||ports.some(p=>!Number.isInteger(p)||p<1||p>65535))throw Error('Choose up to 16 valid ports.');
- busy=true;try{await onvif();const ips=targets;const devices=[];let index=0;await Promise.all(Array.from({length:24},async()=>{while(index<ips.length){const ip=ips[index++];for(const p of ports){const c=await inspect(ip,p);if(c){devices.push(c);break;}}}}));reply({devices});}finally{busy=false;}return;}
+ busy=true;try{const announced=await onvif();const ips=target?targets:[...new Set([...targets,...announced])];const devices=[];let index=0;await Promise.all(Array.from({length:24},async()=>{while(index<ips.length){const ip=ips[index++];for(const p of ports){const c=await inspect(ip,p);if(c){devices.push(c);break;}}}}));reply({devices,networks});}finally{busy=false;}return;}
  if(req.url==='/add'){if(!ipOK(data.ip)||!Number.isInteger(data.port)||data.port<1||data.port>65535)throw Error('Enter a private IPv4 address and valid port.');const c=await inspect(data.ip,data.port);reply({devices:c?[c]:[]});return;}
  throw Error('Unsupported action. Vendor network rewriting is intentionally not implemented.');
  }catch(e){reply({error:e.message});}

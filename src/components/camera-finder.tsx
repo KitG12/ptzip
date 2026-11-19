@@ -77,7 +77,9 @@ export default function CameraFinder() {
   const [tab, setTab] = useState("All");
   const [brand, setBrand] = useState("All brands");
   const [search, setSearch] = useState("");
-  const [subnet, setSubnet] = useState("192.168.1.0/24");
+  const [subnet, setSubnet] = useState("");
+  const [scanScope, setScanScope] = useState("");
+  const [pendingScan, setPendingScan] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [discovered, setDiscovered] = useState(0);
@@ -168,27 +170,41 @@ export default function CameraFinder() {
     setMobileInspector(false);
     setTargetError("");
     setManualError("");
+    setPendingScan(false);
+    setScanScope("");
   }
-  async function scan() {
+  async function scan(connected = paired) {
     if (scanning || manualBusy) return;
     setTargetError("");
     let targets: string[];
     try {
-      targets = parseTarget(subnet);
+      targets = subnet.trim()
+        ? parseTarget(subnet)
+        : mode === "demo"
+          ? parseTarget("192.168.1.0/24")
+          : [];
     } catch (e) {
       setTargetError(e instanceof Error ? e.message : "Check the scan target.");
       return;
     }
-    if (mode === "local" && !paired) {
-      setHelperError("Pair the companion below before scanning your local network.");
+    if (mode === "local" && !connected) {
+      setPendingScan(true);
+      setHelperError(
+        "Your browser cannot access the switch directly. Start and pair the local companion; this scan will begin automatically after pairing.",
+      );
+      setModal("helper");
       return;
     }
+    setPendingScan(false);
+    setModal(null);
     setHasScanned(true);
     const current = ++epoch.current;
     setScanning(true);
     setProgress(0);
     setDiscovered(0);
-    log(`Scanning ${subnet} · ${mode === "demo" ? "simulation" : "local companion"}`);
+    const label = subnet.trim() || (mode === "demo" ? "192.168.1.0/24" : "all connected networks");
+    setScanScope(label);
+    log(`Scanning ${label} · ${mode === "demo" ? "simulation" : "local companion"}`);
     if (mode === "demo") {
       const found = demoCameras.filter((c) => targets.includes(c.ip));
       setCameras([]);
@@ -203,25 +219,44 @@ export default function CameraFinder() {
           if (timer.current) clearInterval(timer.current);
           setScanning(false);
           setSelected(found[0]?.id ?? "");
-          log(`Discovery complete. ${found.length} cameras found on ${subnet}.`, "success");
+          log(`Discovery complete. ${found.length} cameras found on ${label}.`, "success");
           toast.success(`Scan complete · ${found.length} cameras discovered`);
         }
       }, 170);
     } else {
       timer.current = setInterval(() => setProgress((p) => Math.min(94, p + 1)), 650);
       try {
-        const r = await companion("/scan", { target: subnet });
+        const r = await companion("/scan", subnet.trim() ? { target: subnet } : { auto: true });
         if (current !== epoch.current) return;
         const rows = z.array(localSchema).max(512).parse(r.devices);
         setCameras(rows);
         setDiscovered(rows.length);
         setSelected(rows[0]?.id ?? "");
         setProgress(100);
+        if (Array.isArray(r.networks)) {
+          const scopes = z
+            .array(
+              z.object({
+                name: z.string().max(100),
+                target: z.string().max(80),
+                limited: z.boolean(),
+              }),
+            )
+            .max(32)
+            .parse(r.networks);
+          setScanScope(scopes.map((n) => `${n.name}: ${n.target}`).join(" · "));
+          if (scopes.some((n) => n.limited))
+            log(
+              "Large networks: swept the local /24 on each interface plus ONVIF announcements. Enter a range to check other addresses.",
+            );
+        }
         log(`Local scan complete. ${rows.length} identified cameras.`, "success");
         toast.success(`${rows.length} cameras discovered`);
       } catch (e) {
         if (current !== epoch.current) return;
-        toast.error(e instanceof Error ? e.message : "Companion unavailable.");
+        const message = e instanceof Error ? e.message : "Companion unavailable.";
+        setTargetError(message);
+        toast.error(message);
         log("Scan failed. Check the local companion and network.", "error");
       } finally {
         if (current === epoch.current) {
@@ -332,6 +367,7 @@ export default function CameraFinder() {
       setModal(null);
       log("Local companion connected. Ready for real discovery.", "success");
       toast.success("Local companion connected");
+      if (pendingScan) await scan(true);
     } catch (e) {
       setHelperError(
         e instanceof Error
@@ -356,7 +392,7 @@ export default function CameraFinder() {
     setModal("remote");
   };
   return (
-    <div className={`app-shell ${mode === 'local' && !paired ? 'setup-open' : ''}`}>
+    <div className={`app-shell ${mode === "local" && !paired ? "setup-open" : ""}`}>
       <Toaster theme="dark" position="bottom-right" />
       <header className="app-header">
         <div className="app-brand">
@@ -444,14 +480,18 @@ export default function CameraFinder() {
               value={subnet}
               disabled={scanning}
               maxLength={80}
-              placeholder="192.168.1.0/24 or start IP - end IP"
+              placeholder="Auto · all connected networks"
               onChange={(e) => {
                 setSubnet(e.target.value);
                 setTargetError("");
               }}
             />
           </div>
-          <Button className="scan-button" onClick={scanning ? cancelScan : scan}>
+          <Button
+            className="scan-button"
+            disabled={pairBusy || manualBusy}
+            onClick={() => (scanning ? cancelScan() : scan())}
+          >
             {scanning ? <X /> : <Radio />}
             {scanning ? "Stop Scan" : "Scan Network"}
           </Button>
@@ -467,7 +507,7 @@ export default function CameraFinder() {
           <progress value={progress} max={100} />
           <span>
             <LoaderCircle className="spin" />
-            Scanning {subnet} · {discovered} cameras discovered <b>{progress}%</b>
+            Scanning {scanScope} · {discovered} cameras discovered <b>{progress}%</b>
           </span>
         </div>
       )}
@@ -480,7 +520,7 @@ export default function CameraFinder() {
               </h2>
               <p>
                 {mode === "demo" ? "Demo Sandbox · sample data" : "Live Discovery"} <span> / </span>{" "}
-                {subnet}
+                {subnet || scanScope || "All connected networks"}
               </p>
             </div>
             <div className="flex gap-1">
@@ -691,7 +731,7 @@ export default function CameraFinder() {
                         ? "Choose 192.168.1.0/24 to scan the sample production network."
                         : hasScanned
                           ? "No camera was identified. Check power, routing and the web service port, or query a specific IP."
-                          : "Companion connected. Enter an IP, subnet or range above, or query a specific camera IP."}
+                          : "Companion connected. Scan Network automatically detects connected networks. Enter an IP or range above to narrow the scan."}
                 </p>
                 {!scanning && (
                   <Button
@@ -915,7 +955,9 @@ export default function CameraFinder() {
             <>
               <DialogTitle>Local discovery companion</DialogTitle>
               <DialogDescription>
-                Connect this workspace to cameras on your workstation’s network.
+                {pendingScan
+                  ? "Scan requested — pair the companion to start scanning connected networks automatically."
+                  : "Connect this workspace to cameras on your workstation’s network."}
               </DialogDescription>
               <CompanionSetup
                 origin={origin}
