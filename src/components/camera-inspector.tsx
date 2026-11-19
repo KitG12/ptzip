@@ -327,7 +327,7 @@ export function CameraInspector({
         </div>
         <Button className="remote-button" onClick={() => onRemote(camera)}>
           <ExternalLink />
-          {camera.type === "PTZ" ? "Open Camera Web UI" : "Open Camera Web Remote"}
+          Open in Browser
           <ArrowRight />
         </Button>
         <div className="source-note">

@@ -664,6 +664,9 @@ export default function CameraFinder() {
                         setSelected(c.id);
                         setMobileInspector(true);
                       }}
+                      onDoubleClick={() =>
+                        window.open(`http://${c.ip}:${c.port}/`, "_blank", "noopener,noreferrer")
+                      }
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
@@ -699,7 +702,20 @@ export default function CameraFinder() {
                         )}
                       </td>
                       <td className="mono mac-cell">{c.mac}</td>
-                      <td>
+                      <td className="row-actions">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title={`Open ${c.ip} in browser`}
+                          aria-label={`Open ${c.name} in browser`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`http://${c.ip}:${c.port}/`, "_blank", "noopener,noreferrer");
+                            log(`Opened ${c.ip} in browser.`);
+                          }}
+                        >
+                          <ExternalLink />
+                        </Button>
                         <ChevronDown className="row-chevron" />
                       </td>
                     </tr>

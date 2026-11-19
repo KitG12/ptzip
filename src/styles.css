@@ -2042,3 +2042,6 @@ option {
  .setup-open .helper-steps{gap:11px;}
  .setup-open .helper-steps p{margin-top:4px;margin-bottom:6px;}
 }
+
+.row-actions{display:flex;align-items:center;gap:2px;white-space:nowrap}
+.row-actions button{width:28px;height:28px}
