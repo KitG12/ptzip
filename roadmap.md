@@ -16,3 +16,4 @@
 ## External limits
 - Physical camera verification requires cameras on the user’s LAN. Companion pairing, HTTP identification, TCP check, remote launch and read-only safeguards were verified against a local test camera endpoint.
 - Proprietary vendor UDP adapters and native Electron packaging are not included; live subnet rewriting remains unavailable by design until tested adapters exist.
+- [x] Manual IP query shows reachable unidentified devices

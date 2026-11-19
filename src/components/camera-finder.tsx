@@ -347,7 +347,7 @@ export default function CameraFinder() {
           if (found.length) break;
         }
         if (!found.length)
-          throw Error("No camera identified. Check routing, power, and web access.");
+          throw Error(`No response from ${host}. Check the camera is powered and on the same network range as this computer (EasyIP shows its address).`);
         setCameras((cs) => [...cs.filter((c) => !found.some((f) => f.ip === c.ip)), ...found]);
         setSelected(found[0]?.id ?? "");
         log(`Manually discovered ${host}.`, "success");
