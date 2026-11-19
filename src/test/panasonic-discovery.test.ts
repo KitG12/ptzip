@@ -21,3 +21,21 @@ describe('Panasonic EasyIP discovery', () => {
     expect(parsePanasonic(Buffer.from('hello world'))).toBeNull();
   });
 });
+const h = req('../../public/downloads/ptzip-helper.cjs');
+describe('Sony and Bonjour discovery', () => {
+  it('sends the Sony ENQ:network search', () => {
+    expect(h.SONY_ENQ.toString('hex')).toBe('02454e513a6e6574776f726bff03');
+  });
+  it('reads a Sony camera reply including other-subnet address', () => {
+    const r = Buffer.concat([Buffer.from([2]), Buffer.from('MAC:08-00-46-aa-bb-cc\xffMODEL:BRC-X400\xffSOFTVERSION:2.10\xffIPADR:192.168.0.100\xffMASK:255.255.255.0\xffGATEWAY:192.168.0.1\xffNAME:CAM2\xff', 'latin1'), Buffer.from([3])]);
+    expect(h.parseSony(r)).toMatchObject({ brand:'Sony', model:'BRC-X400', ip:'192.168.0.100', cidr:24, gateway:'192.168.0.1', name:'CAM2', firmware:'2.10' });
+  });
+  it('identifies a Blackmagic camera from a Bonjour reply', () => {
+    const name = (s: string) => Buffer.concat([...s.split('.').map(l => Buffer.concat([Buffer.from([l.length]), Buffer.from(l)])), Buffer.from([0])]);
+    const ptrData = name('URSA Broadcast G2._blackmagic._tcp.local');
+    const ans = Buffer.concat([name('_blackmagic._tcp.local'), Buffer.from([0,12,0,1,0,0,0,120,0,ptrData.length]), ptrData]);
+    const a = Buffer.concat([name('ursa.local'), Buffer.from([0,1,0,1,0,0,0,120,0,4,192,168,10,50])]);
+    const pkt = Buffer.concat([Buffer.from([0,0,0x84,0,0,0,0,2,0,0,0,0]), ans, a]);
+    expect(h.parseMdns(pkt, '192.168.10.50')).toMatchObject({ brand:'Blackmagic', ip:'192.168.10.50', model:'URSA Broadcast G2' });
+  });
+});
