@@ -6,13 +6,13 @@ import CameraFinder from "@/components/camera-finder";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Camera Finder — Multi-brand Network Discovery" },
+      { title: "ptzIP — Multi-brand Network Discovery" },
       {
         name: "description",
         content:
           "Discover PTZ, cinema and studio cameras. Inspect network details, access web remotes and export production camera patch sheets.",
       },
-      { property: "og:title", content: "Camera Finder — Multi-brand Network Discovery" },
+      { property: "og:title", content: "ptzIP — Multi-brand Network Discovery" },
       {
         property: "og:description",
         content: "A production workspace for multi-brand camera discovery and camera patch sheets.",

@@ -27,7 +27,9 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { CameraInspector, CameraGlyph } from "@/components/camera-inspector";
-import { Camera, csv, demoCameras, download, ipv4, sameSubnet } from "@/lib/cameras";
+import { Camera, csv, demoCameras, download, ipv4 } from "@/lib/cameras";
+import { initialDiscoveryMode, parseTarget } from "@/lib/discovery";
+import { CompanionSetup } from "@/components/companion-setup";
 type Log = { time: string; message: string; kind?: string | undefined };
 const tabs = ["All", "PTZ", "Cinema", "Studio/Other"];
 const manualSchema = z
@@ -70,27 +72,21 @@ const localSchema = z.object({
   dns2: ipv4,
 });
 export default function CameraFinder() {
-  const [cameras, setCameras] = useState<Camera[]>(demoCameras);
-  const [selected, setSelected] = useState("demo-0");
+  const [cameras, setCameras] = useState<Camera[]>([]);
+  const [selected, setSelected] = useState("");
   const [tab, setTab] = useState("All");
   const [brand, setBrand] = useState("All brands");
   const [search, setSearch] = useState("");
   const [subnet, setSubnet] = useState("192.168.1.0/24");
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [discovered, setDiscovered] = useState(10);
-  const [mode, setMode] = useState<"demo" | "local">("demo");
+  const [discovered, setDiscovered] = useState(0);
+  const [mode, setMode] = useState<"demo" | "local">(initialDiscoveryMode);
   const [modal, setModal] = useState<"manual" | "helper" | "export" | "remote" | null>(null);
   const [remote, setRemote] = useState<Camera | null>(null);
-  const [logs, setLogs] = useState<Log[]>([
-    {
-      time: "09:26:03",
-      message: "Discovery complete. 10 cameras found on the network.",
-      kind: "success",
-    },
-    { time: "09:26:02", message: "ARRI Alexa 35 detected via Bonjour / mDNS / CAP." },
-    { time: "09:26:01", message: "Listening for camera announcements on 192.168.1.0/24." },
-  ]);
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [hasScanned, setHasScanned] = useState(false);
+  const [targetError, setTargetError] = useState("");
   const [pingBusy, setPingBusy] = useState(false);
   const [mobileInspector, setMobileInspector] = useState(false);
   const [host, setHost] = useState("");
@@ -121,15 +117,26 @@ export default function CameraFinder() {
     );
   }
   async function companion(path: string, data: object = {}) {
-    const r = await fetch(`http://127.0.0.1:3344${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Camera-Token": token },
-      body: JSON.stringify(data),
-      signal: AbortSignal.timeout(90000),
-    });
+    let r: Response;
+    try {
+      r = await fetch(`http://127.0.0.1:3344${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Camera-Token": token },
+        body: JSON.stringify(data),
+        signal: AbortSignal.timeout(path === "/scan" ? 90000 : 10000),
+      });
+    } catch {
+      setPaired(false);
+      throw Error(
+        "Companion unavailable. Start the runner on this computer, check the app origin, and allow local-network access in your browser.",
+      );
+    }
     if (!r.ok) throw Error("Companion rejected this app. Check the exact app origin.");
     const result = await r.json();
-    if (result.error) throw Error(result.error);
+    if (result.error) {
+      if (result.error === "Invalid companion token.") setPaired(false);
+      throw Error(result.error);
+    }
     return result;
   }
   const filtered = cameras.filter(
@@ -146,23 +153,44 @@ export default function CameraFinder() {
     if (timer.current) clearInterval(timer.current);
     setScanning(false);
   }
+  function changeMode(next: "local" | "demo") {
+    cancelScan();
+    setMode(next);
+    setCameras(next === "demo" ? demoCameras : []);
+    setSelected(next === "demo" ? "demo-0" : "");
+    setTab("All");
+    setBrand("All brands");
+    setSearch("");
+    setLogs([]);
+    setHasScanned(false);
+    setProgress(0);
+    setDiscovered(0);
+    setMobileInspector(false);
+    setTargetError("");
+    setManualError("");
+  }
   async function scan() {
-    if (scanning) return;
-    if (mode === "local" && !paired) {
-      setModal("helper");
+    if (scanning || manualBusy) return;
+    setTargetError("");
+    let targets: string[];
+    try {
+      targets = parseTarget(subnet);
+    } catch (e) {
+      setTargetError(e instanceof Error ? e.message : "Check the scan target.");
       return;
     }
+    if (mode === "local" && !paired) {
+      setHelperError("Pair the companion below before scanning your local network.");
+      return;
+    }
+    setHasScanned(true);
     const current = ++epoch.current;
     setScanning(true);
     setProgress(0);
     setDiscovered(0);
     log(`Scanning ${subnet} · ${mode === "demo" ? "simulation" : "local companion"}`);
     if (mode === "demo") {
-      const found = demoCameras.filter(
-        (c) =>
-          sameSubnet(c.ip, subnet.split("/")[0] ?? "192.168.1.0", 24) ||
-          (subnet === "192.168.1.0/24" && c.status === "Subnet Mismatch"),
-      );
+      const found = demoCameras.filter((c) => targets.includes(c.ip));
       setCameras([]);
       let p = 0;
       timer.current = setInterval(() => {
@@ -182,7 +210,7 @@ export default function CameraFinder() {
     } else {
       timer.current = setInterval(() => setProgress((p) => Math.min(94, p + 1)), 650);
       try {
-        const r = await companion("/scan", { subnet });
+        const r = await companion("/scan", { target: subnet });
         if (current !== epoch.current) return;
         const rows = z.array(localSchema).max(512).parse(r.devices);
         setCameras(rows);
@@ -244,10 +272,12 @@ export default function CameraFinder() {
       setManualError(v.error.issues[0]?.message ?? "Check your address and port range.");
       return;
     }
+    const current = epoch.current;
     setManualBusy(true);
     try {
       if (mode === "demo") {
         await new Promise((r) => setTimeout(r, 650));
+        if (current !== epoch.current) return;
         const match = demoCameras.find(
           (c) => c.ip === host || `${c.name}.local`.toLowerCase() === host.toLowerCase(),
         );
@@ -259,7 +289,10 @@ export default function CameraFinder() {
         setSelected(match.id);
         toast.success("Camera found · selected in list");
       } else {
-        if (!paired) throw Error("Connect the local companion first.");
+        if (!paired)
+          throw Error(
+            "Pair the companion on the main screen first; your browser cannot query local cameras by itself.",
+          );
         if (!ipv4.safeParse(host).success)
           throw Error(
             "This companion requires a numeric private IPv4 address. Resolve the hostname on your workstation first.",
@@ -267,6 +300,7 @@ export default function CameraFinder() {
         let found: Camera[] = [];
         for (let p = port; p <= endPort; p++) {
           const r = await companion("/add", { ip: host, port: p });
+          if (current !== epoch.current) return;
           found = z.array(localSchema).parse(r.devices);
           if (found.length) break;
         }
@@ -276,6 +310,7 @@ export default function CameraFinder() {
         setSelected(found[0]?.id ?? "");
         log(`Manually discovered ${host}.`, "success");
       }
+      setHasScanned(true);
       setTab("All");
       setBrand("All brands");
       setSearch("");
@@ -310,7 +345,7 @@ export default function CameraFinder() {
   function exportCSV() {
     download(
       new Blob([csv(filtered)], { type: "text/csv;charset=utf-8" }),
-      "camera-patch-sheet.csv",
+      "ptzIP-camera-patch-sheet.csv",
     );
     log(`Exported ${filtered.length} cameras to CSV.`, "success");
     toast.success("Camera patch sheet exported");
@@ -321,24 +356,45 @@ export default function CameraFinder() {
     setModal("remote");
   };
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${mode === 'local' && !paired ? 'setup-open' : ''}`}>
       <Toaster theme="dark" position="bottom-right" />
       <header className="app-header">
         <div className="app-brand">
           <span className="brand-symbol">
             <Video />
           </span>
-          <h1>Camera Finder</h1>
+          <h1>ptzIP</h1>
           <span className="edition">MULTI-BRAND</span>
         </div>
         <div className="header-tools">
+          <div className="discovery-mode" role="group" aria-label="Discovery mode">
+            <Button
+              size="sm"
+              variant={mode === "local" ? "secondary" : "ghost"}
+              aria-pressed={mode === "local"}
+              disabled={pairBusy || manualBusy}
+              onClick={() => changeMode("local")}
+            >
+              <Radio />
+              Live Discovery
+            </Button>
+            <Button
+              size="sm"
+              variant={mode === "demo" ? "secondary" : "ghost"}
+              aria-pressed={mode === "demo"}
+              disabled={pairBusy || manualBusy}
+              onClick={() => changeMode("demo")}
+            >
+              Demo Sandbox
+            </Button>
+          </div>
           <span className={`mode-indicator ${mode === "local" && paired ? "connected" : ""}`}>
             <i />
             {mode === "demo"
-              ? "Demo workspace"
+              ? "Demo Sandbox"
               : paired
                 ? "Local companion connected"
-                : "Local companion offline"}
+                : "Ready to scan · pair companion"}
           </span>
           <Button
             variant="ghost"
@@ -383,17 +439,17 @@ export default function CameraFinder() {
         <div className="scan-controls">
           <div className="subnet-select">
             <Network />
-            <select
-              aria-label="Network interface / subnet"
+            <input
+              aria-label="IP / Subnet sweep"
               value={subnet}
               disabled={scanning}
-              onChange={(e) => setSubnet(e.target.value)}
-            >
-              <option>192.168.1.0/24</option>
-              <option>192.168.2.0/24</option>
-              <option>10.0.0.0/24</option>
-            </select>
-            <ChevronDown />
+              maxLength={80}
+              placeholder="192.168.1.0/24 or start IP - end IP"
+              onChange={(e) => {
+                setSubnet(e.target.value);
+                setTargetError("");
+              }}
+            />
           </div>
           <Button className="scan-button" onClick={scanning ? cancelScan : scan}>
             {scanning ? <X /> : <Radio />}
@@ -401,6 +457,11 @@ export default function CameraFinder() {
           </Button>
         </div>
       </div>
+      {targetError && (
+        <p className="target-error form-error" role="alert">
+          {targetError}
+        </p>
+      )}
       {scanning && (
         <div className="scan-progress">
           <progress value={progress} max={100} />
@@ -418,7 +479,8 @@ export default function CameraFinder() {
                 Cameras <span>{filtered.length}</span>
               </h2>
               <p>
-                {mode === "demo" ? "Production network" : "Local network"} <span> / </span> {subnet}
+                {mode === "demo" ? "Demo Sandbox · sample data" : "Live Discovery"} <span> / </span>{" "}
+                {subnet}
               </p>
             </div>
             <div className="flex gap-1">
@@ -435,6 +497,7 @@ export default function CameraFinder() {
               <Button
                 variant="outline"
                 size="sm"
+                disabled={scanning || manualBusy}
                 onClick={() => {
                   setManualError("");
                   setModal("manual");
@@ -482,72 +545,132 @@ export default function CameraFinder() {
               <ChevronDown />
             </div>
           </div>
+          {mode === "local" && (
+            <form
+              className="direct-query"
+              onSubmit={(e) => {
+                e.preventDefault();
+                addManual();
+              }}
+            >
+              <div>
+                <label htmlFor="direct-ip">Manual IP</label>
+                <input
+                  id="direct-ip"
+                  aria-label="Manual camera IP"
+                  placeholder="192.168.1.147"
+                  value={host}
+                  maxLength={253}
+                  onChange={(e) => {
+                    setHost(e.target.value);
+                    setManualError("");
+                  }}
+                />
+              </div>
+              <div className="query-port">
+                <label htmlFor="direct-port">Port</label>
+                <input
+                  id="direct-port"
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={port}
+                  onChange={(e) => {
+                    setPort(Number(e.target.value));
+                    setEndPort(Number(e.target.value));
+                  }}
+                />
+              </div>
+              <Button type="submit" variant="outline" size="sm" disabled={manualBusy || scanning}>
+                {manualBusy ? <LoaderCircle className="spin" /> : <Search />}
+                {manualBusy ? "Checking…" : "Query IP"}
+              </Button>
+              {manualError && modal !== "manual" && (
+                <p className="form-error" role="alert">
+                  {manualError}
+                </p>
+              )}
+            </form>
+          )}
           <div className="table-scroll">
-            <table className="camera-table">
-              <thead>
-                <tr>
-                  <th aria-label="Status" />
-                  <th>Type</th>
-                  <th>Brand / Model</th>
-                  <th>Camera Name</th>
-                  <th>IP</th>
-                  <th>MAC</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((c) => (
-                  <tr
-                    key={c.id}
-                    tabIndex={0}
-                    aria-selected={camera?.id === c.id}
-                    onClick={() => {
-                      setSelected(c.id);
-                      setMobileInspector(true);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
+            {mode === "local" && !paired && (
+              <CompanionSetup
+                origin={origin}
+                token={token}
+                setToken={setToken}
+                pair={pair}
+                busy={pairBusy}
+                error={helperError}
+              />
+            )}
+
+            {(mode === "demo" || paired || cameras.length > 0) && (
+              <table className="camera-table">
+                <thead>
+                  <tr>
+                    <th aria-label="Status" />
+                    <th>Type</th>
+                    <th>Brand / Model</th>
+                    <th>Camera Name</th>
+                    <th>IP</th>
+                    <th>MAC</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((c) => (
+                    <tr
+                      key={c.id}
+                      tabIndex={0}
+                      aria-selected={camera?.id === c.id}
+                      onClick={() => {
                         setSelected(c.id);
                         setMobileInspector(true);
-                      }
-                    }}
-                    className={camera?.id === c.id ? "selected" : ""}
-                  >
-                    <td>
-                      <span
-                        title={c.status}
-                        aria-label={c.status}
-                        className={`status-dot ${c.status === "Online" ? "online" : c.status === "Offline" ? "offline" : "mismatch"}`}
-                      />
-                    </td>
-                    <td>
-                      <span
-                        className={`type-badge ${c.type === "Cinema" ? "cinema" : c.type === "PTZ" ? "ptz" : "studio"}`}
-                      >
-                        {c.type === "Studio/Other" ? "Studio" : c.type}
-                      </span>
-                    </td>
-                    <td>
-                      <strong>{c.brand}</strong>
-                      <span className="model-cell">{c.model}</span>
-                    </td>
-                    <td className="camera-name-cell">{c.name}</td>
-                    <td className="mono ip-cell">
-                      {c.ip}
-                      {c.status === "Subnet Mismatch" && (
-                        <span className="mismatch-label">Subnet Mismatch</span>
-                      )}
-                    </td>
-                    <td className="mono mac-cell">{c.mac}</td>
-                    <td>
-                      <ChevronDown className="row-chevron" />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!filtered.length && (
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelected(c.id);
+                          setMobileInspector(true);
+                        }
+                      }}
+                      className={camera?.id === c.id ? "selected" : ""}
+                    >
+                      <td>
+                        <span
+                          title={c.status}
+                          aria-label={c.status}
+                          className={`status-dot ${c.status === "Online" ? "online" : c.status === "Offline" ? "offline" : "mismatch"}`}
+                        />
+                      </td>
+                      <td>
+                        <span
+                          className={`type-badge ${c.type === "Cinema" ? "cinema" : c.type === "PTZ" ? "ptz" : "studio"}`}
+                        >
+                          {c.type === "Studio/Other" ? "Studio" : c.type}
+                        </span>
+                      </td>
+                      <td>
+                        <strong>{c.brand}</strong>
+                        <span className="model-cell">{c.model}</span>
+                      </td>
+                      <td className="camera-name-cell">{c.name}</td>
+                      <td className="mono ip-cell">
+                        {c.ip}
+                        {c.status === "Subnet Mismatch" && (
+                          <span className="mismatch-label">Subnet Mismatch</span>
+                        )}
+                      </td>
+                      <td className="mono mac-cell">{c.mac}</td>
+                      <td>
+                        <ChevronDown className="row-chevron" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {!filtered.length && (paired || mode === "demo") && (
               <div className="empty-state">
                 {scanning ? <Radio className="pulse" /> : <Search />}
                 <h3>
@@ -555,7 +678,9 @@ export default function CameraFinder() {
                     ? "Listening for cameras…"
                     : cameras.length
                       ? "No matching cameras"
-                      : "No cameras discovered"}
+                      : hasScanned
+                        ? "No cameras discovered"
+                        : "Ready to scan"}
                 </h3>
                 <p>
                   {scanning
@@ -564,7 +689,9 @@ export default function CameraFinder() {
                       ? "Try another brand, category or search."
                       : mode === "demo"
                         ? "Choose 192.168.1.0/24 to scan the sample production network."
-                        : "Scan your network or add a camera on a routed network."}
+                        : hasScanned
+                          ? "No camera was identified. Check power, routing and the web service port, or query a specific IP."
+                          : "Companion connected. Enter an IP, subnet or range above, or query a specific camera IP."}
                 </p>
                 {!scanning && (
                   <Button
@@ -606,6 +733,13 @@ export default function CameraFinder() {
               <span>{scanning ? "LISTENING" : "SESSION LOG"}</span>
             </div>
             <div className="activity-logs">
+              {!logs.length && (
+                <span>
+                  {mode === "local"
+                    ? "Ready to scan · no network queries sent yet."
+                    : "Demo Sandbox · simulated devices only."}
+                </span>
+              )}
               {logs.slice(0, 3).map((l, i) => (
                 <div key={`${l.time}-${i}`}>
                   <time>{l.time}</time>
@@ -625,12 +759,21 @@ export default function CameraFinder() {
               ))}
             </div>
             <div className="protocol-strip">
-              <span>DISCOVERY PROTOCOLS</span>
-              <b>mDNS</b>
-              <b>Easy IP</b>
-              <b>VISCA</b>
-              <b>ONVIF</b>
-              <b>CAP / RCP2</b>
+              <span>{mode === "local" ? "COMPANION PROTOCOLS" : "SIMULATED PROTOCOLS"}</span>
+              {mode === "local" ? (
+                <>
+                  <b>ONVIF</b>
+                  <b>HTTP identification</b>
+                  <b>TCP checks</b>
+                </>
+              ) : (
+                <>
+                  <b>mDNS</b>
+                  <b>Easy IP</b>
+                  <b>VISCA</b>
+                  <b>CAP / RCP2</b>
+                </>
+              )}
             </div>
           </div>
         </section>
@@ -668,8 +811,12 @@ export default function CameraFinder() {
               <div className="pane-label">Inspector</div>
               <div className="empty-state">
                 <CameraGlyph type="Cinema" large />
-                <h3>Select a camera</h3>
-                <p>Camera identity and connection details appear here.</p>
+                <h3>{mode === "local" && !hasScanned ? "Ready to scan" : "Select a camera"}</h3>
+                <p>
+                  {mode === "local" && !paired
+                    ? "Pair your local companion, then scan your switch or query a camera IP. No sample cameras are loaded in Live Discovery."
+                    : "Camera identity and connection details appear here."}
+                </p>
               </div>
             </aside>
           )}
@@ -757,7 +904,7 @@ export default function CameraFinder() {
                     {manualError}
                   </p>
                 )}
-                <Button type="submit" disabled={manualBusy}>
+                <Button type="submit" disabled={manualBusy || scanning}>
                   {manualBusy ? <LoaderCircle className="spin" /> : <Search />}
                   {manualBusy ? "Checking address…" : "Find Camera"}
                 </Button>
@@ -770,71 +917,14 @@ export default function CameraFinder() {
               <DialogDescription>
                 Connect this workspace to cameras on your workstation’s network.
               </DialogDescription>
-              <div className="mode-switch">
-                <Button
-                  variant={mode === "demo" ? "secondary" : "ghost"}
-                  onClick={() => {
-                    cancelScan();
-                    setMode("demo");
-                    setCameras(demoCameras);
-                    setSelected("demo-0");
-                    setModal(null);
-                  }}
-                >
-                  Demo workspace
-                </Button>
-                <Button
-                  variant={mode === "local" ? "secondary" : "ghost"}
-                  onClick={() => {
-                    cancelScan();
-                    setMode("local");
-                    setCameras([]);
-                  }}
-                >
-                  Live network
-                </Button>
-              </div>
-              <ol className="helper-steps">
-                <li>
-                  <span>1</span>
-                  <div>
-                    <strong>Download the companion</strong>
-                    <p>Requires Node.js 20 or later on the same network as your cameras.</p>
-                    <Button variant="outline" size="sm" asChild>
-                      <a href="/downloads/camera-finder-helper.cjs" download>
-                        <Download />
-                        Download helper
-                      </a>
-                    </Button>
-                  </div>
-                </li>
-                <li>
-                  <span>2</span>
-                  <div>
-                    <strong>Start it on your workstation</strong>
-                    <code>node camera-finder-helper.cjs {origin}</code>
-                  </div>
-                </li>
-                <li>
-                  <span>3</span>
-                  <div>
-                    <strong>Pair this workspace</strong>
-                    <p>
-                      Paste the companion’s token. Allow local-network access when your browser
-                      asks.
-                    </p>
-                    <input
-                      aria-label="Companion pairing token"
-                      type="password"
-                      maxLength={100}
-                      value={token}
-                      onChange={(e) => setToken(e.target.value)}
-                      placeholder="Pairing token"
-                      autoComplete="off"
-                    />
-                  </div>
-                </li>
-              </ol>
+              <CompanionSetup
+                origin={origin}
+                token={token}
+                setToken={setToken}
+                pair={pair}
+                busy={pairBusy}
+                error={helperError}
+              />
               <div className="protocol-grid">
                 <span>
                   Panasonic Easy IP <b>UDP 10669</b>
@@ -858,20 +948,11 @@ export default function CameraFinder() {
                   accepted.
                 </p>
               </div>
-              {helperError && (
-                <p className="form-error" role="alert">
-                  {helperError}
-                </p>
-              )}
-              <Button onClick={pair} disabled={!token || pairBusy}>
-                {pairBusy ? <LoaderCircle className="spin" /> : <EthernetPort />}
-                {pairBusy ? "Connecting…" : paired ? "Reconnect companion" : "Connect companion"}
-              </Button>
             </>
           )}
           {modal === "export" && (
             <>
-              <DialogTitle>Export / Patch sheet</DialogTitle>
+              <DialogTitle>ptzIP · Export / Patch sheet</DialogTitle>
               <DialogDescription>
                 {filtered.length} cameras from your current view · {subnet}
               </DialogDescription>
@@ -977,7 +1058,7 @@ export default function CameraFinder() {
         </DialogContent>
       </Dialog>
       <section className="print-sheet">
-        <h1>Camera Finder · Camera Patch Sheet</h1>
+        <h1>ptzIP · Camera Patch Sheet</h1>
         <p>
           {subnet} · {mode === "demo" ? "SIMULATED DATA" : "Local discovery"} · {filtered.length}{" "}
           cameras

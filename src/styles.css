@@ -154,7 +154,7 @@
   }
 }
 
-/* Camera Finder — professional production workspace */
+/* ptzIP — professional production workspace */
 @theme inline {
   --font-sans: "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
@@ -1800,4 +1800,245 @@ option {
   .protocol-strip {
     padding-top: 12px;
   }
+}
+
+/* Live-first workspace */
+.discovery-mode {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  border-radius: 5px;
+  margin-right: 10px;
+}
+.discovery-mode button {
+  font-size: 10px;
+  height: 28px;
+}
+.subnet-select input {
+  width: 270px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font: 11px var(--font-mono);
+}
+.target-error {
+  padding: 0 26px;
+  flex-shrink: 0;
+}
+.direct-query {
+  display: flex;
+  align-items: end;
+  gap: 9px;
+  padding: 0 18px 14px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.direct-query > div:first-child {
+  flex: 1;
+  min-width: 120px;
+}
+.direct-query label {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 9px;
+  margin-bottom: 5px;
+}
+.direct-query input {
+  height: 32px;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--input);
+  border-radius: 4px;
+  background: var(--background);
+  padding: 0 9px;
+  font: 11px var(--font-mono);
+}
+.query-port {
+  width: 65px;
+}
+.direct-query button {
+  height: 32px;
+}
+.direct-query > .form-error {
+  flex-basis: 100%;
+  margin-top: 0;
+}
+.inline-setup {
+  padding: 23px 22px 26px;
+}
+.setup-title {
+  display: flex;
+  gap: 11px;
+  align-items: start;
+  margin-bottom: 22px;
+}
+.setup-title > svg {
+  width: 23px;
+  height: 23px;
+  color: var(--primary);
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.setup-title > div {
+  flex: 1;
+}
+.setup-title h3 {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+.setup-title p {
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+.setup-title > .device-status {
+  flex-shrink: 0;
+  font-size: 9px;
+  margin-top: 4px;
+}
+.runner-command {
+  display: flex;
+  align-items: center;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-top: 8px;
+}
+.runner-command code {
+  border: 0;
+  background: transparent;
+  margin: 0;
+  flex: 1;
+}
+.runner-command button {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+.pair-row {
+  display: flex;
+  gap: 8px;
+}
+.pair-row input {
+  min-width: 0;
+  flex: 1;
+}
+.pair-row button {
+  flex-shrink: 0;
+  height: 36px;
+}
+.utility-modal .inline-setup {
+  padding: 0;
+}
+.utility-modal .setup-title {
+  display: none;
+}
+@media (max-width: 1150px) {
+  .mode-indicator {
+    display: none;
+  }
+  .subnet-select input {
+    width: 210px;
+  }
+}
+@media (max-width: 900px) {
+  .edition {
+    display: none;
+  }
+  .header-tools .discovery-mode {
+    margin-right: 0;
+  }
+  .header-tools > button:last-child {
+    display: none;
+  }
+  .subnet-select input {
+    width: 175px;
+  }
+  .setup-title {
+    flex-wrap: wrap;
+  }
+  .setup-title > .device-status {
+    margin-left: 34px;
+  }
+  .inline-setup {
+    padding: 20px 15px;
+  }
+  .pair-row {
+    flex-wrap: wrap;
+  }
+  .pair-row button {
+    width: 100%;
+  }
+}
+@media (max-width: 700px) {
+  .app-header {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 100px;
+    padding: 12px 16px;
+    gap: 10px;
+  }
+  .header-tools {
+    width: 100%;
+  }
+  .discovery-mode {
+    flex: 1;
+  }
+  .discovery-mode button {
+    flex: 1;
+  }
+  .subnet-select {
+    min-width: 0;
+  }
+  .subnet-select input {
+    width: 100%;
+  }
+  .direct-query {
+    padding: 0 13px 14px;
+  }
+  .inline-setup {
+    padding: 22px 16px;
+  }
+  .setup-title > .device-status {
+    margin-left: 34px;
+  }
+  .pair-row {
+    flex-wrap: nowrap;
+  }
+  .pair-row button {
+    width: auto;
+    font-size: 10px;
+    padding: 0 9px;
+  }
+  .inline-setup .helper-steps code {
+    font-size: 9px;
+  }
+  .pane-title p {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    max-width: 190px;
+  }
+  .scan-controls {
+    flex-wrap: wrap;
+  }
+  .scan-controls > .subnet-select {
+    flex-basis: 100%;
+  }
+  .scan-button {
+    width: 100%;
+  }
+  .camera-pane .table-scroll {
+    min-height: 220px;
+  }
+}
+@media(min-width:701px) and (max-height:900px){
+ .setup-open .activity-panel{display:none;}
+ .setup-open .pane-title{padding-top:13px;padding-bottom:12px;}
+ .setup-open .filter-bar{padding-bottom:12px;}
+ .setup-open .inline-setup{padding-top:13px;padding-bottom:16px;}
+ .setup-open .setup-title{margin-bottom:13px;}
+ .setup-open .helper-steps{gap:11px;}
+ .setup-open .helper-steps p{margin-top:4px;margin-bottom:6px;}
 }

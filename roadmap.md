@@ -1,4 +1,9 @@
-# Camera Finder
+# ptzIP
+- [x] Rename all app branding, installation metadata, exports and documentation to ptzIP.
+- [x] Default to empty Live Discovery and explicit Demo Sandbox selection.
+- [x] Show inline companion setup, command copy and connection status.
+- [x] Validate and execute entered IP, CIDR and bounded IP ranges.
+- [x] Verify live-first and paired manual/sweep flows.
 - [x] Add and verify manifest-only desktop installation and branded icons.
 - [x] Build the two-pane camera finder and adaptive inspectors.
 - [x] Complete simulated scanning, filtering, manual add, PTZ validation and confirmation.
