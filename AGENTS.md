@@ -28,3 +28,9 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Camera Finder architecture
+- Keep network validation in a browser-safe shared module so simulated PTZ changes are tested.
+- Real LAN discovery uses the downloadable origin-and-token-restricted loopback companion because the hosted app cannot access workstation UDP networks.
+- Keep the companion read-only until tested vendor adapters exist; never imply a simulated action modifies physical devices.
+- Camera records are session-only; local discovery does not need cloud persistence.
