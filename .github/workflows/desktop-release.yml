@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
-        with: { node-version: 22 }
+        with: { node-version: 20 }
       - run: npm install --no-save --no-package-lock --ignore-scripts electron@33.2.0 electron-builder@25
       - name: Build adapter-pinned broadcast sender (macOS)
         if: runner.os == 'macOS'
