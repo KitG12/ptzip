@@ -8,6 +8,8 @@ mac:
   target: [{ target: dmg, arch: [universal] }]
   icon: build/icon.png
   category: public.app-category.utilities
+  extraResources: [{ from: build/native/ptzip-bcast, to: ptzip-bcast }]
+  x64ArchFiles: Contents/Resources/ptzip-bcast
   artifactName: ptzIP-mac.${ext}
   extendInfo:
     NSLocalNetworkUsageDescription: ptzIP scans your local network to discover production cameras.

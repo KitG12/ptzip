@@ -264,6 +264,7 @@ export default function CameraFinder() {
             z.object({
               adapters: z.number(),
               sent: z.number(),
+              pinned: z.number().optional(),
               replies: z.number(),
               parsed: z.number(),
               errors: z.array(z.string().max(300)).max(12),
@@ -275,7 +276,7 @@ export default function CameraFinder() {
         if (diag.success) {
           const lines = Object.entries(diag.data).map(
             ([k, d]) =>
-              `${names[k] ?? k}: ${d.adapters} adapters, ${d.sent} requests sent, ${d.replies} replies, ${d.parsed} cameras recognised${d.errors.length ? ` · problems: ${d.errors.join("; ")}` : ""}${d.sample ? ` · unrecognised reply ${d.sample}` : ""}`,
+              `${names[k] ?? k}: ${d.adapters} adapters, ${d.sent} requests sent (${d.pinned ?? 0} pinned to an adapter), ${d.replies} replies, ${d.parsed} cameras recognised${d.errors.length ? ` · problems: ${d.errors.join("; ")}` : ""}${d.sample ? ` · unrecognised reply ${d.sample}` : ""}`,
           );
           setReport(
             [`ptzIP scan report ${new Date().toISOString()}`, `Networks: ${label}`, ...lines, `Devices: ${rows.map((c) => `${c.brand} ${c.model} ${c.ip} ${c.status}`).join(", ") || "none"}`].join("\n"),
@@ -868,6 +869,9 @@ export default function CameraFinder() {
               <span>{mode === "local" ? "COMPANION PROTOCOLS" : "SIMULATED PROTOCOLS"}</span>
               {mode === "local" ? (
                 <>
+                  <b>Panasonic EasyIP</b>
+                  <b>Sony VISCA</b>
+                  <b>Bonjour</b>
                   <b>ONVIF</b>
                   <b>HTTP identification</b>
                   <b>TCP checks</b>

@@ -52,3 +52,23 @@ describe('Cross-network Panasonic search', () => {
     expect(rows.map((c: {ip:string}) => c.ip)).toEqual(['192.168.1.147']);
   }, 10000);
 });
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+const bin = '/tmp/ptzip-bcast-test';
+let built = false;
+try { execFileSync('cc', ['-O2', '-o', bin, 'electron/native/ptzip-bcast.c']); built = existsSync(bin); } catch { built = false; }
+describe.skipIf(!built)('Adapter-pinned broadcast sender (desktop app)', () => {
+  it('sends the search out each adapter and still hears the camera', async () => {
+    const cam = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+    cam.on('message', () => { cam.setBroadcast(true); cam.send(announcement(), 10669, '255.255.255.255'); });
+    await new Promise<void>(r => cam.bind(10670, () => r()));
+    process.env.PTZIP_BCAST = bin;
+    const d = h.newDiag();
+    try {
+      const rows = await h.udpSearch({ listenPort: 10669, destPort: 10670, d, key: (c: {mac:string}) => c.mac, parse: (b: Buffer) => h.parsePanasonic(b), packet: (r: {address:string}) => h.panasonicRequest([0,0,0,0,0,0], r.address.split('.').map(Number)) });
+      expect(d.errors).toEqual([]);
+      expect(d.pinned).toBe(d.adapters);
+      expect(rows.map((c: {ip:string}) => c.ip)).toEqual(['192.168.1.147']);
+    } finally { delete process.env.PTZIP_BCAST; cam.close(); }
+  }, 10000);
+});

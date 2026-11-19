@@ -4,6 +4,7 @@ const http = require('node:http');
 const net = require('node:net');
 const dgram = require('node:dgram');
 const crypto = require('node:crypto');
+const { execFile } = require('node:child_process');
 const os = require('node:os');
 const allowedOrigin = process.argv[2];
 if (require.main === module && (!allowedOrigin || !/^https?:\/\/[^/]+$/.test(allowedOrigin))) { console.error('Supply the exact app origin: node ptzip-helper.cjs https://your-app.lovable.app'); process.exit(1); }
@@ -34,8 +35,11 @@ function parsePanasonic(buf) {
  const dns=f[0x23]; const port=f[0x25]?.length>=2?f[0x25].readUInt16BE(0):80;
  return {brand:'Panasonic',protocol:'Panasonic EasyIP',mac:[...buf.subarray(6,12)].map(x=>x.toString(16).padStart(2,'0').toUpperCase()).join(':'),ip,cidr:Math.min(30,Math.max(1,cidr)),gateway:ip4(f[0x22]||f[0xa2])||'0.0.0.0',dns1:dns?ip4(dns):'0.0.0.0',dns2:dns&&dns.length>=8?ip4(dns.subarray(4)):'0.0.0.0',port:port>0?port:80,name:str(f[0xa7]).slice(0,60),model:str(f[0xa8]).replace(/^CAM:/,'AW-').slice(0,100)};
 }
-function ifaceRows(){const out=[];for(const rows of Object.values(os.networkInterfaces()))for(const r of rows||[]){if(r.internal||(r.family!=='IPv4'&&r.family!==4))continue;out.push(r);}return out;}
-function newDiag(){return {adapters:0,sent:0,replies:0,parsed:0,errors:[],sample:''};}
+function ifaceRows(){const out=[];for(const [name,rows] of Object.entries(os.networkInterfaces()))for(const r of rows||[]){if(r.internal||(r.family!=='IPv4'&&r.family!==4))continue;out.push({...r,name});}return out;}
+// Desktop app on macOS: a tiny bundled sender pins the all-hosts broadcast to each adapter (IP_BOUND_IF),
+// because macOS ignores the bound source address and sends 255.255.255.255 only via the default route.
+function pinnedSend(bin,iface,sport,dport,packet){return new Promise(res=>{execFile(bin,[iface,String(sport),String(dport),packet.toString('hex')],{timeout:2000},(e,_o,err)=>res(e?(String(err||e.message).trim().slice(0,120)||'failed'):null));});}
+function newDiag(){return {adapters:0,sent:0,pinned:0,replies:0,parsed:0,errors:[],sample:''};}
 // Read-only broadcast search. Sends from a socket bound to each adapter's own address so the
 // all-hosts broadcast (255.255.255.255) leaves through every adapter, not just the default route
 // (macOS otherwise sends it only out the primary adapter, e.g. a Wi-Fi hotspot).
@@ -48,7 +52,8 @@ function udpSearch({listenPort,destPort,packet,parse,key,d,note}){return new Pro
   x.on('error',e=>{if(!bound&&fallback){open(0,addr,false,ready);}else err(`${addr} port ${port}`,e);});
   x.on('message',onMsg);
   try{x.bind(port,addr,()=>{bound=true;try{x.setBroadcast(true);}catch{}if(ready&&!closed)ready(x);});}catch(e){err(addr,e);}};
- open(listenPort,'0.0.0.0',false,null);
+ const bin=process.env.PTZIP_BCAST;
+ open(listenPort,'0.0.0.0',false,bin?()=>{for(const r of rows)pinnedSend(bin,r.name,listenPort,destPort,packet(r)).then(e=>{if(e)err(`${r.name} pinned broadcast`,e);else{d.sent++;d.pinned++;}});}:null);
  if(!rows.length)d.errors.push('No IPv4 network adapters found.');
  for(const r of rows){const ip=r.address.split('.').map(Number),m=(r.netmask||'255.255.255.0').split('.').map(Number);const bcast=ip.map((x,i)=>(x|(~m[i]&255))).join('.');
   open(listenPort,r.address,true,x=>{for(const dest of new Set(['255.255.255.255',bcast]))try{x.send(packet(r),destPort,dest,e=>{if(e)err(`${r.address} → ${dest}`,e);else d.sent++;});}catch(e){err(`${r.address} → ${dest}`,e);}});}
@@ -114,7 +119,7 @@ function connectedNetworks(interfaces = os.networkInterfaces()) {
  return networks;
 }
 let busy = false;
-if(require.main!==module){module.exports={udpSearch,newDiag,panasonicRequest,parsePanasonic,parseSony,SONY_ENQ,parseMdns,mdnsQuery};}else http.createServer(async(req,res)=>{
+if(require.main!==module){module.exports={udpSearch,pinnedSend,newDiag,panasonicRequest,parsePanasonic,parseSony,SONY_ENQ,parseMdns,mdnsQuery};}else http.createServer(async(req,res)=>{
  const origin=req.headers.origin;
  if(req.headers.host!=='127.0.0.1:3344' || origin!==allowedOrigin) {res.writeHead(403);res.end();return;}
  const headers={'Access-Control-Allow-Origin':allowedOrigin,'Access-Control-Allow-Headers':'Content-Type, X-Camera-Token','Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Private-Network':'true','Content-Type':'application/json','Cache-Control':'no-store'};

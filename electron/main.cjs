@@ -3,14 +3,17 @@
 const { app, BrowserWindow, utilityProcess, shell } = require('electron');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const fs = require('node:fs');
 const APP_URL = process.env.PTZIP_URL || 'https://ptzip.lovable.app';
 const origin = new URL(APP_URL).origin;
 const token = crypto.randomBytes(24).toString('hex');
 process.env.PTZIP_TOKEN = token;
 let helper;
+// macOS: bundled sender that pins camera-search broadcasts to each adapter (see electron/native).
+const bcast = path.join(process.resourcesPath || '', 'ptzip-bcast');
 function startHelper() {
   helper = utilityProcess.fork(path.join(__dirname, '..', 'public', 'downloads', 'ptzip-helper.cjs'), [origin], {
-    env: { ...process.env, PTZIP_TOKEN: token }, stdio: 'inherit',
+    env: { ...process.env, PTZIP_TOKEN: token, ...(fs.existsSync(bcast) ? { PTZIP_BCAST: bcast } : {}) }, stdio: 'inherit',
   });
 }
 function createWindow() {
