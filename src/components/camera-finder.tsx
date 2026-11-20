@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { CameraInspector, CameraGlyph } from "@/components/camera-inspector";
 import { DesktopDownload } from "@/components/desktop-download";
+import { OwnershipCredit } from "@/components/ownership-credit";
 import { desktopBridge } from "@/lib/desktop";
 import { Camera, csv, demoCameras, download, ipv4 } from "@/lib/cameras";
 import { initialDiscoveryMode, parseTarget } from "@/lib/discovery";
@@ -939,6 +940,7 @@ export default function CameraFinder() {
             ? "Demo mode · no physical devices modified"
             : "Read-only local discovery"}
         </span>
+        <OwnershipCredit compact />
         <span>
           <EthernetPort />
           {scopeLabel}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Apple, Monitor, Radar, ShieldCheck, Video, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import CameraFinder from "@/components/camera-finder";
+import { OwnershipCredit } from "@/components/ownership-credit";
 import { desktopBridge, installers } from "@/lib/desktop";
 
 // The scanner only works inside the desktop app; the web page is a download page.
@@ -36,6 +37,7 @@ export function DesktopGate() {
           </Button>
         </div>
         {!ready && <p className="mt-4 text-sm text-muted-foreground">Installers will be available here once the first release is published.</p>}
+        <OwnershipCredit />
       </div>
     </main>
   );

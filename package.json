@@ -99,5 +99,6 @@
   },
   "version": "1.0.0",
   "main": "electron/main.cjs",
-  "productName": "ptzIP"
+  "productName": "ptzIP",
+  "author": "Fiona Graham"
 }

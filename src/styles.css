@@ -984,6 +984,32 @@ option {
   color: var(--muted-foreground);
   font-family: var(--font-mono);
 }
+.ownership-credit {
+  margin-top: 32px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+}
+.ownership-label {
+  display: block;
+  margin-bottom: 9px;
+  color: var(--foreground);
+  font: 10px var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.ownership-credit p {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.status-bar .ownership-compact {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: 9px var(--font-mono);
+  white-space: nowrap;
+}
 .back-button {
   display: none;
 }
@@ -1451,6 +1477,9 @@ option {
   }
   .status-bar {
     padding: 0 20px;
+  }
+  .status-bar > span:last-child {
+    display: none;
   }
 }
 @media (max-width: 700px) {
