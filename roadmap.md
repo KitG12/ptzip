@@ -1,4 +1,5 @@
 # ptzIP
+
 - [x] Sweep all discovery entry points, setup cancellation, scan results and network summaries.
 - [x] Make Scan Network select connected interfaces automatically, prompt pairing visibly, and resume after pairing.
 - [x] Test automatic interface targeting and paired scanning with real local responses.
@@ -13,9 +14,12 @@
 - [x] Connect a downloadable local discovery helper and web remote launcher.
 - [x] Add CSV and printable patch sheets.
 - [x] Test camera rules and desktop/tablet/phone flows.
+
 ## External limits
+
 - Physical camera verification requires cameras on the user’s LAN. Companion pairing, HTTP identification, TCP check, remote launch and read-only safeguards were verified against a local test camera endpoint.
 - Proprietary vendor UDP adapters and native Electron packaging are not included; live subnet rewriting remains unavailable by design until tested adapters exist.
 - [x] Manual IP query shows reachable unidentified devices
 - [x] Sony, Blackmagic (Bonjour) and Canon (XC web info) discovery
 - [x] Show Single Cell Films LTD name and the supplied company logo in the copyright and ownership credit.
+- [x] Add a zero-camera diagnosis with searched connections, method results, next steps and a complete report.

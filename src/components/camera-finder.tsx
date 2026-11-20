@@ -33,6 +33,14 @@ import { desktopBridge } from "@/lib/desktop";
 import { Camera, csv, demoCameras, download, ipv4 } from "@/lib/cameras";
 import { initialDiscoveryMode, parseTarget } from "@/lib/discovery";
 import { CompanionSetup } from "@/components/companion-setup";
+import { ScanDiagnosis } from "@/components/scan-diagnosis";
+import {
+  buildScanReport,
+  scanDiagnosticsSchema,
+  scanNetworkSchema,
+  summariseScan,
+  type ScanSummary,
+} from "@/lib/scan-diagnostics";
 type Log = { time: string; message: string; kind?: string | undefined };
 const tabs = ["All", "PTZ", "Cinema", "Studio/Other"];
 const manualSchema = z
@@ -105,6 +113,7 @@ export default function CameraFinder() {
   const [helperError, setHelperError] = useState("");
   const [origin, setOrigin] = useState("");
   const [report, setReport] = useState("");
+  const [scanSummary, setScanSummary] = useState<ScanSummary | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const epoch = useRef(0);
   useEffect(() => {
@@ -178,6 +187,8 @@ export default function CameraFinder() {
     setManualError("");
     setPendingScan(false);
     setScanScope("");
+    setScanSummary(null);
+    setReport("");
   }
   async function scan(connected = paired) {
     if (scanning || manualBusy) return;
@@ -208,6 +219,8 @@ export default function CameraFinder() {
     setScanning(true);
     setProgress(0);
     setDiscovered(0);
+    setScanSummary(null);
+    setReport("");
     const label = subnet.trim() || (mode === "demo" ? "192.168.1.0/24" : "all connected networks");
     setScanScope(label);
     log(`Scanning ${label} · ${mode === "demo" ? "simulation" : "local companion"}`);
@@ -242,54 +255,53 @@ export default function CameraFinder() {
         setBrand("All brands");
         setSearch("");
         setProgress(100);
-        if (Array.isArray(r.networks)) {
-          const scopes = z
-            .array(
-              z.object({
-                name: z.string().max(100),
-                target: z.string().max(80),
-                limited: z.boolean(),
-              }),
-            )
-            .max(32)
-            .parse(r.networks);
-          if (scopes.length) setScanScope(scopes.map((n) => `${n.name}: ${n.target}`).join(" · "));
-          if (scopes.some((n) => n.limited))
+        const parsedNetworks = z
+          .array(scanNetworkSchema)
+          .max(32)
+          .safeParse(r.networks ?? []);
+        const networks = parsedNetworks.success ? parsedNetworks.data : [];
+        if (networks.length)
+          setScanScope(networks.map((n) => `${n.name}: ${n.target}`).join(" · "));
+        if (networks.some((n) => n.limited))
+          log(
+            "Large networks: swept the local /24 on each interface plus ONVIF announcements. Enter a range to check other addresses.",
+          );
+        const parsedDiagnostics = scanDiagnosticsSchema.safeParse(r.diagnostics ?? {});
+        const diagnostics = parsedDiagnostics.success ? parsedDiagnostics.data : {};
+        const summary = summariseScan({
+          automatic: !subnet.trim(),
+          networks,
+          diagnostics,
+          deviceCount: rows.length,
+        });
+        setScanSummary(summary);
+        setReport(
+          buildScanReport({
+            timestamp: new Date().toISOString(),
+            label,
+            summary,
+            diagnostics,
+            devices: rows.map((c) => `${c.brand} ${c.model} ${c.ip} ${c.status}`),
+          }),
+        );
+        const names: Record<string, string> = {
+          panasonic: "Panasonic search",
+          sony: "Sony search",
+        };
+        for (const [k, d] of Object.entries(diagnostics)) {
+          if (d.errors.length) log(`${names[k] ?? k} problem: ${d.errors[0]}`, "error");
+          else if (d.replies && !d.parsed)
             log(
-              "Large networks: swept the local /24 on each interface plus ONVIF announcements. Enter a range to check other addresses.",
+              `${names[k] ?? k} got ${d.replies} replies it could not read. Copy the report for further investigation.`,
+              "error",
             );
         }
-        const diag = z
-          .record(
-            z.string().max(20),
-            z.object({
-              adapters: z.number(),
-              sent: z.number(),
-              pinned: z.number().optional(),
-              replies: z.number(),
-              parsed: z.number(),
-              errors: z.array(z.string().max(300)).max(12),
-              sample: z.string().max(1000),
-            }),
-          )
-          .safeParse(r.diagnostics ?? {});
-        const names: Record<string, string> = { panasonic: "Panasonic search", sony: "Sony search" };
-        if (diag.success) {
-          const lines = Object.entries(diag.data).map(
-            ([k, d]) =>
-              `${names[k] ?? k}: ${d.adapters} adapters, ${d.sent} requests sent (${d.pinned ?? 0} pinned to an adapter), ${d.replies} replies, ${d.parsed} cameras recognised${d.errors.length ? ` · problems: ${d.errors.join("; ")}` : ""}${d.sample ? ` · unrecognised reply ${d.sample}` : ""}`,
-          );
-          setReport(
-            [`ptzIP scan report ${new Date().toISOString()}`, `Networks: ${label}`, ...lines, `Devices: ${rows.map((c) => `${c.brand} ${c.model} ${c.ip} ${c.status}`).join(", ") || "none"}`].join("\n"),
-          );
-          for (const [k, d] of Object.entries(diag.data)) {
-            if (d.errors.length) log(`${names[k] ?? k} problem: ${d.errors[0]}`, "error");
-            else if (d.replies && !d.parsed)
-              log(`${names[k] ?? k} got ${d.replies} replies it could not read. Copy the report and send it to support.`, "error");
-          }
-        }
-        log(`Local scan complete. ${rows.length} identified cameras.`, "success");
-        toast.success(`${rows.length} cameras discovered`);
+        log(
+          `Local scan complete. ${rows.length} identified cameras.`,
+          rows.length ? "success" : undefined,
+        );
+        if (rows.length) toast.success(`${rows.length} cameras discovered`);
+        else toast.info("Scan complete · no cameras discovered");
       } catch (e) {
         if (current !== epoch.current) return;
         const message = e instanceof Error ? e.message : "Companion unavailable.";
@@ -433,6 +445,16 @@ export default function CameraFinder() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+  function copyScanReport() {
+    if (!report) {
+      toast.error("No scan report is available yet");
+      return;
+    }
+    navigator.clipboard
+      .writeText(report)
+      .then(() => toast.success("Scan report copied"))
+      .catch(() => toast.error("Could not copy the report"));
+  }
   function exportCSV() {
     download(
       new Blob([csv(filtered)], { type: "text/csv;charset=utf-8" }),
@@ -446,7 +468,8 @@ export default function CameraFinder() {
     setRemote(c);
     setModal("remote");
   };
-  const scopeLabel = subnet || scanScope || (mode === "demo" ? "192.168.1.0/24" : "All connected networks");
+  const scopeLabel =
+    subnet || scanScope || (mode === "demo" ? "192.168.1.0/24" : "All connected networks");
   return (
     <div className={`app-shell ${mode === "local" && !paired ? "setup-open" : ""}`}>
       <Toaster theme="dark" position="bottom-right" />
@@ -749,7 +772,11 @@ export default function CameraFinder() {
                           aria-label={`Open ${c.name} in browser`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            window.open(`http://${c.ip}:${c.port}/`, "_blank", "noopener,noreferrer");
+                            window.open(
+                              `http://${c.ip}:${c.port}/`,
+                              "_blank",
+                              "noopener,noreferrer",
+                            );
                             log(`Opened ${c.ip} in browser.`);
                           }}
                         >
@@ -762,46 +789,55 @@ export default function CameraFinder() {
                 </tbody>
               </table>
             )}
-            {!filtered.length && (paired || mode === "demo") && (
-              <div className="empty-state">
-                {scanning ? <Radio className="pulse" /> : <Search />}
-                <h3>
-                  {scanning
-                    ? "Listening for cameras…"
-                    : cameras.length
-                      ? "No matching cameras"
-                      : hasScanned
-                        ? "No cameras discovered"
-                        : "Ready to scan"}
-                </h3>
-                <p>
-                  {scanning
-                    ? "Checking discovery protocols on the selected subnet."
-                    : cameras.length
-                      ? "Try another brand, category or search."
-                      : mode === "demo"
-                        ? "Choose 192.168.1.0/24 to scan the sample production network."
+            {!filtered.length &&
+              (paired || mode === "demo") &&
+              (!scanning && mode === "local" && hasScanned && !cameras.length && scanSummary ? (
+                <ScanDiagnosis
+                  summary={scanSummary}
+                  onScan={() => void scan()}
+                  onManual={() => document.getElementById("direct-ip")?.focus()}
+                  onCopyReport={copyScanReport}
+                />
+              ) : (
+                <div className="empty-state">
+                  {scanning ? <Radio className="pulse" /> : <Search />}
+                  <h3>
+                    {scanning
+                      ? "Listening for cameras…"
+                      : cameras.length
+                        ? "No matching cameras"
                         : hasScanned
-                          ? "No camera was identified. Check power, routing and the web service port, or query a specific IP."
-                          : "Companion connected. Scan Network automatically detects connected networks. Enter an IP or range above to narrow the scan."}
-                </p>
-                {!scanning && (
-                  <Button
-                    variant="outline"
-                    disabled={pairBusy || manualBusy}
-                    onClick={() => {
-                      if (cameras.length) {
-                        setTab("All");
-                        setBrand("All brands");
-                        setSearch("");
-                      } else scan();
-                    }}
-                  >
-                    {cameras.length ? "Clear filters" : "Scan Network"}
-                  </Button>
-                )}
-              </div>
-            )}
+                          ? "No cameras discovered"
+                          : "Ready to scan"}
+                  </h3>
+                  <p>
+                    {scanning
+                      ? "Checking discovery protocols on the selected subnet."
+                      : cameras.length
+                        ? "Try another brand, category or search."
+                        : mode === "demo"
+                          ? "Choose 192.168.1.0/24 to scan the sample production network."
+                          : hasScanned
+                            ? "No camera was identified. Check power, routing and the web service port, or query a specific IP."
+                            : "Companion connected. Scan Network automatically detects connected networks. Enter an IP or range above to narrow the scan."}
+                  </p>
+                  {!scanning && (
+                    <Button
+                      variant="outline"
+                      disabled={pairBusy || manualBusy}
+                      onClick={() => {
+                        if (cameras.length) {
+                          setTab("All");
+                          setBrand("All brands");
+                          setSearch("");
+                        } else scan();
+                      }}
+                    >
+                      {cameras.length ? "Clear filters" : "Scan Network"}
+                    </Button>
+                  )}
+                </div>
+              ))}
           </div>
           <div className="table-summary">
             <span>
@@ -824,16 +860,7 @@ export default function CameraFinder() {
                 Network activity
               </h3>
               {report && !scanning ? (
-                <button
-                  type="button"
-                  className="report-copy"
-                  onClick={() =>
-                    navigator.clipboard
-                      .writeText(report)
-                      .then(() => toast.success("Scan report copied"))
-                      .catch(() => toast.error("Could not copy the report"))
-                  }
-                >
+                <button type="button" className="report-copy" onClick={copyScanReport}>
                   Copy scan report
                 </button>
               ) : (
@@ -1177,8 +1204,8 @@ export default function CameraFinder() {
       <section className="print-sheet">
         <h1>ptzIP · Camera Patch Sheet</h1>
         <p>
-          {scopeLabel} · {mode === "demo" ? "SIMULATED DATA" : "Local discovery"} · {filtered.length}{" "}
-          cameras
+          {scopeLabel} · {mode === "demo" ? "SIMULATED DATA" : "Local discovery"} ·{" "}
+          {filtered.length} cameras
         </p>
         <table>
           <thead>
