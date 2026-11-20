@@ -18,3 +18,4 @@
 - Proprietary vendor UDP adapters and native Electron packaging are not included; live subnet rewriting remains unavailable by design until tested adapters exist.
 - [x] Manual IP query shows reachable unidentified devices
 - [x] Sony, Blackmagic (Bonjour) and Canon (XC web info) discovery
+- [x] Show Single Cell Films LTD name and the supplied company logo in the copyright and ownership credit.

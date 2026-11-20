@@ -998,6 +998,31 @@ option {
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
+.ownership-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.ownership-logo {
+  height: 54px;
+  width: auto;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.ownership-logo-sm {
+  width: 15px;
+  height: 15px;
+  object-fit: cover;
+  object-position: 50% 0;
+  margin-right: 6px;
+  vertical-align: -3px;
+}
+.ownership-company {
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
 .ownership-credit p {
   margin-top: 4px;
   font-size: 12px;

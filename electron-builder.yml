@@ -1,6 +1,6 @@
 appId: app.ptzip.desktop
 productName: ptzIP
-copyright: Copyright © 2026 Fiona Graham
+copyright: Copyright © 2026 Fiona Graham · Single Cell Films LTD
 electronVersion: 33.2.0
 directories: { output: electron-release, buildResources: build }
 files: [electron/**, public/downloads/ptzip-helper.cjs, package.json]
