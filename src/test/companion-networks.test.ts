@@ -7,6 +7,10 @@ const start=helper.indexOf('function connectedNetworks(');
 const end=helper.indexOf('let busy = false;',start);
 const connected=runInNewContext(`${helper.slice(start,end)}; connectedNetworks`, {ipOK: (ip:string)=>/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip)}) as (interfaces:Record<string,object[]>) => {name:string;target:string;limited:boolean;address:string}[];
 describe('Automatic local networks',()=>{
+ it('keeps both physical connections when they share an address range',()=>{
+  const networks=connected({en7:[{family:'IPv4',address:'192.168.1.20',cidr:'192.168.1.20/24',internal:false}],en8:[{family:'IPv4',address:'192.168.1.21',cidr:'192.168.1.21/24',internal:false}]});
+  expect(networks.map(n=>n.address)).toEqual(['192.168.1.20','192.168.1.21']);
+ });
  it('targets every connected private IPv4 interface, not a hardcoded subnet',()=>{
   const networks=connected({Ethernet:[{family:'IPv4',address:'192.168.7.20',cidr:'192.168.7.20/24',internal:false}],WiFi:[{family:'IPv4',address:'10.20.3.10',cidr:'10.20.3.10/24',internal:false}]});
   expect(networks.map(n=>n.target)).toEqual(['192.168.7.0/24','10.20.3.0/24']);

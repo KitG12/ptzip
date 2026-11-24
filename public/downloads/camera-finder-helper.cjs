@@ -113,7 +113,7 @@ function connectedNetworks(interfaces = os.networkInterfaces()) {
   const base=Math.floor(value/size)*size;
   const ip=[24,16,8,0].map(s=>(base>>>s)&255).join('.');
   const target=`${ip}/${prefix}`;
-  if(!networks.some(n=>n.target===target))networks.push({name,target,limited:bits<24,address:row.address});
+  if(!networks.some(n=>n.name===name&&n.address===row.address))networks.push({name,target,limited:bits<24,address:row.address,cidr:bits});
  }
  if(networks.length>32)throw Error('Too many connected interfaces. Enter a specific subnet or range.');
  return networks;
@@ -130,7 +130,7 @@ if(require.main!==module){module.exports={udpSearch,pinnedSend,newDiag,panasonic
  let raw=''; for await(const chunk of req){raw+=chunk;if(raw.length>4096){reply({error:'Request too large.'});return;}}
  let data;try{data=JSON.parse(raw);}catch{reply({error:'Invalid JSON.'});return;}
  try {
- if(req.url==='/health'){reply({connected:true});return;}
+ if(req.url==='/health'){reply({connected:true,networks:connectedNetworks()});return;}
  if(req.url==='/ping'){if(!ipOK(data.ip)||!Number.isInteger(data.port)||data.port<1||data.port>65535)throw Error('Invalid private IPv4 address or port.');reply(await ping(data.ip,data.port));return;}
  if(req.url==='/scan'){
  if(busy)throw Error('A scan is already running.');

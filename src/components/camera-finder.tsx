@@ -28,6 +28,10 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { CameraInspector, CameraGlyph } from "@/components/camera-inspector";
 import { DesktopDownload } from "@/components/desktop-download";
+import { DesktopUpdates } from "@/components/desktop-updates";
+import { NetworkConnections } from "@/components/network-connections";
+import { CameraSupport } from "@/components/camera-support";
+import { outsideConnectedRanges } from "@/lib/connection-status";
 import { OwnershipCredit } from "@/components/ownership-credit";
 import { desktopBridge } from "@/lib/desktop";
 import { Camera, csv, demoCameras, download, ipv4 } from "@/lib/cameras";
@@ -40,6 +44,7 @@ import {
   scanNetworkSchema,
   summariseScan,
   type ScanSummary,
+  type ScanNetwork,
 } from "@/lib/scan-diagnostics";
 type Log = { time: string; message: string; kind?: string | undefined };
 const tabs = ["All", "PTZ", "Cinema", "Studio/Other"];
@@ -114,6 +119,9 @@ export default function CameraFinder() {
   const [origin, setOrigin] = useState("");
   const [report, setReport] = useState("");
   const [scanSummary, setScanSummary] = useState<ScanSummary | null>(null);
+  const [connections, setConnections] = useState<ScanNetwork[]>([]);
+  const [connectionBusy, setConnectionBusy] = useState(false);
+  const [connectionError, setConnectionError] = useState("");
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const epoch = useRef(0);
   useEffect(() => {
@@ -156,6 +164,24 @@ export default function CameraFinder() {
     }
     return result;
   }
+  function readConnections(value: unknown) {
+    const parsed = z.array(scanNetworkSchema).max(32).safeParse(value);
+    if (parsed.success) setConnections(parsed.data);
+  }
+  async function refreshConnections() {
+    if (!paired) return;
+    setConnectionBusy(true);
+    setConnectionError("");
+    try { const result = await companion("/health"); readConnections(result.networks); }
+    catch (error) { setConnectionError(error instanceof Error ? error.message : "Could not read connections."); }
+    finally { setConnectionBusy(false); }
+  }
+  useEffect(() => {
+    if (!paired) { setConnections([]); return; }
+    const interval = setInterval(() => { if (!scanning) void refreshConnections(); }, 15000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paired, scanning, token]);
   const filtered = cameras.filter(
     (c) =>
       (tab === "All" || c.type === tab) &&
@@ -260,6 +286,7 @@ export default function CameraFinder() {
           .max(32)
           .safeParse(r.networks ?? []);
         const networks = parsedNetworks.success ? parsedNetworks.data : [];
+        if (!subnet.trim()) setConnections(networks);
         if (networks.length)
           setScanScope(networks.map((n) => `${n.name}: ${n.target}`).join(" · "));
         if (networks.some((n) => n.limited))
@@ -418,7 +445,8 @@ export default function CameraFinder() {
     setPairBusy(true);
     setHelperError("");
     try {
-      await companion("/health");
+      const health = await companion("/health");
+      readConnections(health.networks);
       setPaired(true);
       setMode("local");
       setCameras([]);
@@ -489,6 +517,7 @@ export default function CameraFinder() {
                 : "Ready to scan · pair companion"}
           </span>
           <DesktopDownload />
+          <CameraSupport />
           <Button
             variant="ghost"
             size="icon"
@@ -554,6 +583,8 @@ export default function CameraFinder() {
           </Button>
         </div>
       </div>
+      <NetworkConnections networks={connections} paired={paired} scanning={scanning} manual={subnet} busy={connectionBusy} error={connectionError} onRefresh={() => void refreshConnections()} />
+      <DesktopUpdates />
       {targetError && (
         <p className="target-error form-error" role="alert">
           {targetError}
@@ -757,8 +788,8 @@ export default function CameraFinder() {
                       <td className="camera-name-cell">{c.name}</td>
                       <td className="mono ip-cell">
                         {c.ip}
-                        {c.status === "Subnet Mismatch" && (
-                          <span className="mismatch-label">Subnet Mismatch</span>
+                        {(outsideConnectedRanges(c.ip, connections) === true || c.status === "Subnet Mismatch") && (
+                          <span className="mismatch-label">{outsideConnectedRanges(c.ip, connections) === true ? "Different address range" : "Web port unreachable"}</span>
                         )}
                       </td>
                       <td className="mono mac-cell">{c.mac}</td>
@@ -970,7 +1001,7 @@ export default function CameraFinder() {
           <EthernetPort />
           {scopeLabel}
           <i />
-          {cameras.length} devices <span className="footer-version">v1.0</span>
+          {cameras.length} devices
         </span>
       </footer>
       <Dialog

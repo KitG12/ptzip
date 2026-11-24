@@ -293,8 +293,8 @@ export function CameraInspector({
           <div className="notice">
             <Info />
             <p>
-              This camera is on a different subnet. Select its interface or update its PTZ network
-              settings.
+              Discovery received this camera’s announcement, but its web port did not answer.
+              Check this computer’s address range, routing and the camera’s web port. No camera settings have been changed.
             </p>
           </div>
         )}
@@ -317,8 +317,8 @@ export function CameraInspector({
             <Button
               variant="outline"
               size="icon"
-              title="Identify / Blink Tally"
-              aria-label="Identify / Blink Tally"
+              title={camera.source === "local" ? "Identify via camera controls — automatic tally not verified" : "Identify / Blink Tally"}
+              aria-label={camera.source === "local" ? "Identify via camera controls" : "Identify / Blink Tally"}
               onClick={() => onIdentify(camera)}
             >
               <Radio />

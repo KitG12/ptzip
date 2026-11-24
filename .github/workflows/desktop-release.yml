@@ -17,6 +17,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: npm install --no-save --no-package-lock --ignore-scripts electron@33.2.0 electron-builder@25
+      - name: Prepare branded installer icon
+        run: node -e "const fs=require('fs');fs.mkdirSync('build',{recursive:true});fs.copyFileSync('public/icons/camera-finder-512.png','build/icon.png');"
       - name: Build adapter-pinned broadcast sender (macOS)
         if: runner.os == 'macOS'
         run: mkdir -p build/native && clang -O2 -arch arm64 -arch x86_64 -o build/native/ptzip-bcast electron/native/ptzip-bcast.c
@@ -32,12 +34,18 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - name: Read installer version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with: { path: dist, merge-multiple: true }
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.0.0' }}
-          name: ptzIP ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.0.0' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || steps.version.outputs.tag }}
+          name: ptzIP ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || steps.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
           make_latest: true
           draft: false

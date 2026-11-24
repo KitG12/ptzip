@@ -1,5 +1,14 @@
 # ptzIP
 
+## Crew improvements
+- [x] 2. Show actual connected interfaces before/during scans and highlight different address ranges.
+- [x] 3. Show installed version, check releases and offer the correct installer.
+- [ ] Publish website and run a fresh v1.1.0 Desktop release — requires user publishing and GitHub Actions run; existing release is v1.0.0.
+- [ ] 1. Verified model support — blocked on model details and physical camera tests.
+- [ ] 4. Tally identification — blocked on safely tested vendor adapters and physical cameras.
+- [x] 5. Password-protected controls — retain camera-owned browser login without collecting or exporting credentials; physical camera login verification is pending.
+- [ ] 6. Signed installers — blocked on Apple Developer and Windows signing certificates.
+
 - [x] Sweep all discovery entry points, setup cancellation, scan results and network summaries.
 - [x] Make Scan Network select connected interfaces automatically, prompt pairing visibly, and resume after pairing.
 - [x] Test automatic interface targeting and paired scanning with real local responses.

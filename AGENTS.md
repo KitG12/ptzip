@@ -41,3 +41,7 @@ use the editor.
 - Desktop installation uses manifest-only PWA support with bundled icons; do not add an app-shell service worker unless offline use is requested, to avoid stale preview caches.
 - The web page is only a download page; the scanner UI renders solely inside the Electron shell (detected via the preload bridge), and the Demo Sandbox is not shown.
 - The Electron desktop shell loads the published web app and forks the same read-only helper with an injected token exposed via preload, so desktop users auto-pair; installers are built only in GitHub Actions (electron-builder), never in the Lovable build.
+- Native release checks use a main-frame, origin-restricted IPC call to a fixed GitHub endpoint and validated platform assets; no camera or credential data is sent, and checks never auto-install.
+- Read connected interface addresses from authenticated companion health responses, refresh while idle, and preserve multiple adapters sharing a subnet so crew can see actual connections.
+- Address-range badges compare camera addresses with actual interface prefixes, not bounded sweep prefixes; an unanswered web port alone is not evidence of a different subnet.
+- Desktop releases use the package version for manual release tags; bump it when native scanner or shell code changes so update checks can distinguish installers.

@@ -4,6 +4,8 @@ export const scanNetworkSchema = z.object({
   name: z.string().max(100),
   target: z.string().max(80),
   limited: z.boolean(),
+  address: z.string().max(45).optional(),
+  cidr: z.number().int().min(1).max(32).optional(),
 });
 
 export const scanMethodSchema = z.object({

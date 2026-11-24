@@ -978,6 +978,17 @@ option {
   color: var(--muted-foreground);
   font-family: var(--font-mono);
 }
+.network-connections { padding: 8px 26px; border-bottom: 1px solid var(--border); background: var(--card); font-size: 11px; }
+.connection-heading { display: flex; align-items: center; gap: 8px; color: var(--muted-foreground); }
+.connection-heading > svg { width: 14px; height: 14px; }
+.connection-heading > strong { color: var(--foreground); }
+.connection-heading > button { margin-left: auto; height: 26px; width: 26px; }
+.connection-list { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.connection-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+.connection-entry > span { color: var(--muted-foreground); }
+.connection-entry code { overflow-wrap: anywhere; }
+.desktop-updates { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 5px 26px; font-size: 11px; color: var(--muted-foreground); border-bottom: 1px solid var(--border); }
+@media (max-width: 640px) { .network-connections, .desktop-updates { padding-left: 14px; padding-right: 14px; } .connection-entry { width: 100%; } }
 .ownership-credit {
   margin-top: 40px;
   padding-top: 10px;

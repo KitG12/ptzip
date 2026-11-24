@@ -51,3 +51,19 @@ npm run dev
 ## Desktop app (.dmg / .exe)
 
 Crew can click **Get desktop app** to install ptzIP with built-in network scanning and no terminal setup. Installers are built by `.github/workflows/desktop-release.yml`: push a tag like `v1.0.0` from your connected GitHub repo, then set `VITE_DESKTOP_RELEASES_URL` to `https://github.com/OWNER/REPO/releases/latest/download` so the download buttons point at the release. Builds are unsigned unless you add Apple/Windows signing certificates.
+
+### Connection and installer checks
+
+The desktop workspace shows actual private IPv4 interface names, addresses and prefixes from the paired companion. Connections refresh every 15 seconds while idle and can be refreshed manually. Scans still search automatically; a local /24 sweep limit is not the full interface prefix. A camera outside all reported interface ranges is highlighted separately from an unanswered web port.
+
+The installed native version comes from Electron, not the website version. The app checks the fixed public GitHub latest-release endpoint on opening and on request (native checks cached for one minute). It offers only the matching Mac or Windows asset from this repository, never installs automatically, and sends no camera or credential data. Offline or incomplete-release checks report an error rather than claiming the app is current. Older installers need one manual reinstall to gain this capability.
+
+Run a new Desktop release workflow to publish v1.1.0; manual runs now use package.json's version so future native changes must bump that version. Publish the website changes separately.
+
+### Remaining verification and signing
+
+Camera Support lists implemented discovery methods, not certified models. Confirm each crew model with physical tests: Ethernet alone, Ethernet plus Wi-Fi, same range, Panasonic/Sony different range on the same switch, and password-protected browser controls. Save a scan report per case. No model is marked verified without this evidence.
+
+Camera passwords are entered only into the camera's own page in the system browser. ptzIP does not collect or store them, and they do not belong in reports or exports. Automatic tally commands remain unavailable until a read-only-discovery-independent vendor adapter is safely tested, including guaranteed tally reset.
+
+Installers remain unsigned. Signing needs the owner's Apple Developer account (Developer ID Application certificate and notarization credentials) and a Windows code-signing certificate or trusted signing service. Do not place certificates, passwords or keys in source. Configure them as GitHub Actions secrets when available; remove CSC_IDENTITY_AUTO_DISCOVERY=false only when Mac signing and notarization are configured and verify the resulting installers on real Mac/Windows machines before calling them signed.
