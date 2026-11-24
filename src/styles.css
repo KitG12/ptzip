@@ -241,17 +241,11 @@ select:focus {
   gap: 12px;
 }
 .brand-symbol {
-  display: grid;
-  place-items: center;
+  display: block;
+  flex-shrink: 0;
   width: 34px;
   height: 34px;
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border-radius: 7px;
-}
-.brand-symbol svg {
-  width: 21px;
-  height: 21px;
+  object-fit: contain;
 }
 .app-brand h1 {
   font-size: 20px;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Apple, Monitor, Radar, ShieldCheck, Video, Zap } from "lucide-react";
+import { Apple, Monitor, Radar, ShieldCheck, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import CameraFinder from "@/components/camera-finder";
 import { OwnershipCredit } from "@/components/ownership-credit";
@@ -15,7 +15,7 @@ export function DesktopGate() {
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-12 text-foreground">
       <div className="w-full max-w-xl">
         <div className="mb-8 flex items-center gap-3">
-          <span className="brand-symbol"><Video /></span>
+          <img className="brand-symbol" src="/icons/camera-finder-192.png" alt="ptzIP app icon" width={34} height={34} />
           <h1 className="text-3xl font-semibold">ptzIP</h1>
         </div>
         <h2 className="text-2xl font-semibold">Camera discovery runs in the desktop app</h2>

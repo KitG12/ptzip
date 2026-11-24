@@ -475,9 +475,7 @@ export default function CameraFinder() {
       <Toaster theme="dark" position="bottom-right" />
       <header className="app-header">
         <div className="app-brand">
-          <span className="brand-symbol">
-            <Video />
-          </span>
+          <img className="brand-symbol" src="/icons/camera-finder-192.png" alt="ptzIP app icon" width={34} height={34} />
           <h1>ptzIP</h1>
           <span className="edition">MULTI-BRAND</span>
         </div>
