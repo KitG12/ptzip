@@ -3,8 +3,8 @@
 ## Crew improvements
 - [x] 2. Show actual connected interfaces before/during scans and highlight different address ranges.
 - [x] 3. Show installed version, check releases and offer the correct installer.
-- [ ] Publish website — live site at ptzip.lovable.app is a stale build (no copyright credit, no newest scanning); awaiting user go-ahead to publish.
-- [ ] v1.1.0 Desktop release — build run 4 queued on commit c945cdd (2026-11-24T19:25:42Z); release job must finish before installers replace v1.0.0.
+- [x] Publish website — live at https://ptzip.lovable.app with the copyright credit and logo; download links serve the v1.1.0 installers.
+- [x] v1.1.0 Desktop release — published on GitHub (run 4, commit c945cdd); Mac and Windows installers now serve from releases/latest.
 - [ ] 1. Verified model support — blocked on model details and physical camera tests.
 - [ ] 4. Tally identification — blocked on safely tested vendor adapters and physical cameras.
 - [x] 5. Password-protected controls — retain camera-owned browser login without collecting or exporting credentials; physical camera login verification is pending.
