@@ -18,7 +18,7 @@ export function OwnershipCredit({ compact = false }: OwnershipCreditProps) {
     return (
       <span className="ownership-credit ownership-compact" title="Copyright and ownership">
         <img className="ownership-logo-sm" src={COMPANY_MARK} alt="" aria-hidden="true" />
-        {copyright} · Owner
+        {copyright}
       </span>
     );
   }
