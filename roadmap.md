@@ -33,3 +33,4 @@
 - [x] Sony, Blackmagic (Bonjour) and Canon (XC web info) discovery
 - [x] Show Single Cell Films LTD name and the supplied company logo in the copyright and ownership credit.
 - [x] Add a zero-camera diagnosis with searched connections, method results, next steps and a complete report.
+- [x] Rebrand the icon: no perforation marks, bigger lens and target, blue PTZ lens in the centre; rebuilt every icon size, favicon and installer icon.
